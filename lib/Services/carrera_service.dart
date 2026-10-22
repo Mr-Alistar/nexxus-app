@@ -1,24 +1,16 @@
-import 'dart:io';
-import 'package:dio/dio.dart';
 import 'package:nexxus/Models/carrera_model.dart';
 import 'package:nexxus/Services/formulario_service.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 
-// Este servicio se encarga de la sincronización de datos de carreras e imagenes entre el servidor y la base de datos local.
+// Servicio de carreras. La sincronización remota con el servidor se retiró:
+// la app usa la información local empaquetada (datosFallback) y las imágenes
+// incluidas en Assets. Si en el futuro el CRM expone un endpoint de carreras,
+// aquí se podría volver a agregar la descarga.
 class CarreraService {
-  final Dio _dio = Dio();
-  final String _urlApi = 'https://nexxusapi.datacode.space/apis/api_carreras.php';
+  // Lista de carreras conocidas (siglas usadas por el mapa y las pantallas).
+  final List<String> carrerasConocidas = ['G', 'DIA', 'IM', 'IF', 'TIID', 'NM'];
 
-  // Lista de carreras conocidas para sincronizar (agregar o quitar dependiendo de las carreras activas en la UT)
-  //utilice las siglas para no escribir nombres largo, ejemplo G de Gastronomía.
-  final List<String> _carrerasSincronizar = ['G', 'DIA', 'IM', 'IF', 'TIID', 'NM'];
-
-  // datos de respaldo (Fallback, último recurso) en caso de que no haya internet ni datos en BD local (instalación nueva).
+  // Información local de cada carrera (siglas -> datos).
   final Map<String, CarreraModel> datosFallback = {
-    //Esta información es inventada, solo aparecerá en caso de tener la app recién instalada y nunca haberla ejecutado con conexión a internet.
     'G': CarreraModel(
       siglas: 'G',
       nombre: 'Gastronomía',
@@ -69,96 +61,8 @@ class CarreraService {
     ),
   };
 
-  // Metodo principal que coordina la descarga de información y de imágenes para cada carrera.
-  // Retorna true si se sincronizaron todas las carreras exitosamente.
-  Future<bool> sincronizarCarreras() async {
-    // sincronizacion en paralelo
-    List<Future<bool>> tareas = _carrerasSincronizar.map((siglas) async {
-      try {
-        final response = await _dio.get(
-          _urlApi,
-          queryParameters: {'carrera': siglas},
-        ).timeout(const Duration(seconds: 10));//10 segundos es el tiempo maximo de espera, le pueden aumentar ustedes
-
-        if (response.statusCode == 200 && response.data != null) {
-          Map<String, dynamic> data = response.data;
-          
-          // descargar imagenes y guardar en BD local
-          String rutasLocales = await _descargarImagenesCarrera(siglas, data['url_imagenes'] ?? '');
-          final carrera = CarreraModel.fromMap(data);
-          await _guardarCarreraLocal(carrera, rutasLocales);
-          return true;
-        }
-        return false;
-      } catch (e) {
-        debugPrint("Error al sincronizar carrera $siglas: $e");
-        return false;
-      }
-    }).toList();
-
-    final resultados = await Future.wait(tareas);
-    // Si alguna carrera falló em descargarse, es false
-    return !resultados.contains(false);
-  }
-
-  // Descarga los archivos de imagen y los guarda en el almacenamiento interno del dispositivo.
-  Future<String> _descargarImagenesCarrera(String siglas, String urlImagenes) async {
-    if (urlImagenes.isEmpty) return '';
-    
-    List<String> listaUrls = [];
-    List<String> rutasGuardadas = [];
-    
-    // Usamos la lógica de procesamiento para identificar qué descargar. esto se basa en la tabla que hice para las carreras
-    final carreraTemporal = CarreraModel(
-      siglas: siglas, 
-      nombre: '', acercaDe: '', planEstudios: '', modalidad: '', 
-      urlImagenes: urlImagenes
-    );
-    listaUrls = carreraTemporal.obtenerListaFotos();
-
-    if (listaUrls.isEmpty) return '';
-
-    try {
-      final directorioApp = await getApplicationDocumentsDirectory();
-      final carpetaCarrera = Directory(p.join(directorioApp.path, 'Carreras', siglas));
-      
-      if (!await carpetaCarrera.exists()) {
-        await carpetaCarrera.create(recursive: true);
-      }
-
-      for (int i = 0; i < listaUrls.length; i++) {
-        String url = listaUrls[i];
-        String extension = p.extension(url).split('?').first;
-        if (extension.isEmpty) extension = '.jpg';
-        
-        String nombreArchivo = '${siglas}_$i$extension';
-        String rutaArchivoLocal = p.join(carpetaCarrera.path, nombreArchivo);
-        
-        await _dio.download(url, rutaArchivoLocal);
-        rutasGuardadas.add(rutaArchivoLocal);
-      }
-      
-      return rutasGuardadas.join(',');
-    } catch (e) {
-      debugPrint("Error al descargar imágenes de $siglas: $e");
-      return '';
-    }
-  }
-
-  // para actualizar el registro de la carrera en SQLite, o insertar tmb
-  Future<void> _guardarCarreraLocal(CarreraModel carrera, String rutasLocales) async {
-    final db = await FormularioService.instancia.database;
-    final map = carrera.toMap();
-    map['rutas_locales'] = rutasLocales; // Aseguramos que se guardan las rutas locales en la BD.
-
-    await db.insert(
-      'carreras',
-      map,
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  // Obtiene los datos de una carrera, tiene prioridad la base de datos o de lo contrario se usa el fallback (ultima opcion)
+  // Obtiene los datos de una carrera. Si existe un registro local en SQLite lo
+  // usa; de lo contrario recurre a la información empaquetada (datosFallback).
   Future<CarreraModel> obtenerCarrera(String siglas) async {
     final db = await FormularioService.instancia.database;
     final maps = await db.query(
@@ -170,15 +74,15 @@ class CarreraService {
     if (maps.isNotEmpty) {
       return CarreraModel.fromMap(maps.first);
     }
-    
-    // Si no se encuentra en BD, se ysa el fallback hardcodeado.
-    return datosFallback[siglas] ?? CarreraModel(
-      siglas: siglas, 
-      nombre: siglas, 
-      acercaDe: 'Información no disponible.', 
-      planEstudios: 'Información no disponible.', 
-      modalidad: '', 
-      urlImagenes: ''
-    );
+
+    return datosFallback[siglas] ??
+        CarreraModel(
+          siglas: siglas,
+          nombre: siglas,
+          acercaDe: 'Información no disponible.',
+          planEstudios: 'Información no disponible.',
+          modalidad: '',
+          urlImagenes: '',
+        );
   }
 }

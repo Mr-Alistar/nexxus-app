@@ -12,10 +12,13 @@ import 'package:nexxus/Views/mapa_screen.dart';
 import 'package:nexxus/Views/carrera_screen.dart';
 import 'package:nexxus/Views/acerca_screen.dart';
 import 'package:nexxus/Views/dashboard_screen.dart';
+import 'package:nexxus/Services/db_init.dart';
 
 void main() {
   // inicio minimo requerido para arrancar flutter
   WidgetsFlutterBinding.ensureInitialized();
+  // Configura el motor de base de datos según la plataforma (web / escritorio / móvil).
+  initDatabaseFactory();
   runApp(const MainApp());
 }
 

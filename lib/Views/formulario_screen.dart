@@ -50,9 +50,11 @@ class _FormularioScreenState extends State<FormularioScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // Mostramos el mensaje específico del campo que falta (viene de
+        // validarCampos), en lugar de un texto genérico.
         _mostrarModalResultado(
           titulo: "Formulario incompleto",
-          mensaje: "Verifique los campos obligatorios e intente de nuevo.",
+          mensaje: e.toString().replaceFirst("Exception: ", ""),
           esExito: false,
         );
       }
@@ -202,7 +204,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
                       const SizedBox(height: 20),
 
                       // campo Email (me falta validar que sea un correo válido con arroba etc)
-                      const Text("Correo electrónico", style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text("Correo electrónico *", style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 5),
                       TextFormField(
                         controller: _viewModel.emailCtrl,
@@ -221,7 +223,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text("Teléfono", style: TextStyle(fontWeight: FontWeight.bold)),
+                                const Text("Teléfono *", style: TextStyle(fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 5),
                                 TextField(
                                   controller: _viewModel.telefonoCtrl,
