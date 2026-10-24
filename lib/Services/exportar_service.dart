@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:excel/excel.dart' as ex;
 import 'package:csv/csv.dart';
@@ -5,52 +6,106 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:nexxus/Models/formulario_model.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 class ExportarService {
   static final ExportarService instancia = ExportarService._init();
   ExportarService._init();
 
-  // Exportar a CSV*************************************************************
-  Future<void> exportarCSV(List<Prospecto> prospectos) async {
-    try {
-      List<List<dynamic>> filas = [];
-      // El archivo CVS exporta toda la tabla tal cual, en Excel sólo se exportan los campos solicitados
-      filas.add(["Nombre", "Apellido 1", "Apellido 2", "Género", "Email", "Teléfono", "Tel.referencia", "Tipo de zona", "Carrera", "Preparatoria", "Medio enterado", "Nota"]);
+  // [NUEVO]: Lista única y centralizada con los 12 encabezados exactos de 'solicitudes_prueba.xlsx'
+  static const List<String> _columnasSolicitudes = [
+    'nombre',
+    'apellido1',
+    'apellido2',
+    'genero',
+    'email',
+    'telefono',
+    'tel_referencia',
+    'tipo_zona',
+    'carrera',
+    'preparatoria',
+    'medio_enterado',
+    'nota',
+  ];
 
-      for (var p in prospectos) {//use var p de prospectos
-        filas.add([
-          p.nombre, 
-          p.apellido1, 
-          p.apellido2 ?? '', //como algunos campos son opcionales, se usa ?? '' para evitar errores
-          p.genero,
-          p.email,
-          p.telefono,
-          p.telReferencia ?? '',
-          p.tipoZona,
-          p.carrera,
-          //p.modalidad,
-          p.preparatoria,
-          p.medioEnterado,
-          p.nota ?? '',
-        ]);
-      }
-      // Exportar a CSV
-      String csvData = const ListToCsvConverter().convert(filas);
+  // [NUEVO]: Convierte un Prospecto en una fila de 12 valores respetando el orden de 'solicitudes_prueba.xlsx'
+  List<String> _mapearFila(Prospecto p) {
+    return [
+      p.nombre,
+      p.apellido1,
+      p.apellido2 ?? '',
+      p.genero,
+      p.email,
+      p.telefono,
+      p.telReferencia ?? '',
+      p.tipoZona,
+      p.carrera,
+      p.preparatoria,
+      p.medioEnterado,
+      p.nota ?? '',
+    ];
+  }
 
-      // opcional, agregué un nombre de archivo con fecha y hora para saber cuando se exporto y evitar duplicados
-      final ahora = DateTime.now();
-      final fechaHora = "${ahora.year}${ahora.month.toString().padLeft(2, '0')}${ahora.day.toString().padLeft(2, '0')}_${ahora.hour.toString().padLeft(2, '0')}${ahora.minute.toString().padLeft(2, '0')}";
+  // Genera el prefijo de fecha y hora para el nombre del archivo
+  String _generarPrefijoFecha() {
+    final ahora = DateTime.now();
+    return "${ahora.year}${ahora.month.toString().padLeft(2, '0')}${ahora.day.toString().padLeft(2, '0')}_${ahora.hour.toString().padLeft(2, '0')}${ahora.minute.toString().padLeft(2, '0')}";
+  }
 
+  // Comparte o descarga el archivo según la plataforma (Web vs Android)
+  Future<void> _compartirArchivo({
+    required Uint8List bytes,
+    required String nombreArchivo,
+    required String mimeType,
+    required String subject,
+  }) async {
+    if (kIsWeb) {
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile.fromData(bytes, name: nombreArchivo, mimeType: mimeType)],
+          subject: subject,
+        ),
+      );
+    } else {
       final directory = await getTemporaryDirectory();
-      final nombreArchivo = '${fechaHora}_prospectos_nexxus.csv';
       final file = File('${directory.path}/$nombreArchivo');
-      await file.writeAsString(csvData, flush: true);
+      await file.writeAsBytes(bytes, flush: true);
 
       await SharePlus.instance.share(
         ShareParams(
-          files: [XFile(file.path, name: nombreArchivo, mimeType: 'text/csv')],
-          subject: 'Exportación de Prospectos (CSV)',
+          files: [XFile(file.path, name: nombreArchivo, mimeType: mimeType)],
+          subject: subject,
         ),
+      );
+    }
+  }
+
+  // 1. Exportar a CSV (misma estructura de solicitudes_prueba.xlsx) *************
+  Future<void> exportarCSV(List<Prospecto> prospectos) async {
+    try {
+      final List<List<dynamic>> filas = [
+        _columnasSolicitudes,
+        ...prospectos.map(_mapearFila),
+      ];
+
+      final String csvData = const ListToCsvConverter().convert(filas);
+      final String fechaHora = _generarPrefijoFecha();
+      final String nombreArchivo = '${fechaHora}_solicitudes_nexxus.csv';
+
+      // UTF-8 con BOM para conservar acentos y ñ al abrirse en Excel
+      final csvBytes = Uint8List.fromList([
+        0xEF,
+        0xBB,
+        0xBF,
+        ...utf8.encode(csvData),
+      ]);
+
+      await _compartirArchivo(
+        bytes: csvBytes,
+        nombreArchivo: nombreArchivo,
+        mimeType: 'text/csv',
+        subject: 'Exportación de Solicitudes (CSV)',
       );
     } catch (e) {
       debugPrint("Error exportando archivo CSV: $e");
@@ -58,73 +113,75 @@ class ExportarService {
     }
   }
 
-  // Exportar a Excel***********************************************************
+  // 2. Exportar a Excel (idéntico a solicitudes_prueba.xlsx) ********************
   Future<void> exportarExcel(List<Prospecto> prospectos) async {
     try {
-      // Orden por id, se puede omitir.
-      prospectos.sort((a, b) => (a.id ?? 0).compareTo(b.id ?? 0));
+      final listaOrdenada = List<Prospecto>.from(prospectos)
+        ..sort((a, b) => (a.id ?? 0).compareTo(b.id ?? 0));
 
-      var excel = ex.Excel.createExcel();
-      var hoja = excel['Prospectos'];
-      excel.delete('Sheet1'); // Eliminar la hoja por defecto del Excel
+      final excel = ex.Excel.createExcel();
+      // [MODIFICADO]: La hoja se llama exactamente 'solicitudes' como en solicitudes_prueba.xlsx
+      final hoja = excel['solicitudes'];
+      excel.delete('Sheet1');
 
-      //Estilo de los títulos de las columnas (verde con texto blanco)
-      ex.CellStyle headerStyle = ex.CellStyle(
-        backgroundColorHex: ex.ExcelColor.fromHexString('#14A38E'),
+      // [MODIFICADO]: Estilo del encabezado con el verde #1A6B4A de solicitudes_prueba.xlsx
+      final headerStyle = ex.CellStyle(
+        backgroundColorHex: ex.ExcelColor.fromHexString('#1A6B4A'),
         fontColorHex: ex.ExcelColor.fromHexString('#FFFFFF'),
-        bold: true,//negritas
+        bold: true,
         horizontalAlign: ex.HorizontalAlign.Center,
+        verticalAlign: ex.VerticalAlign.Center,
       );
 
-      // Columnas de acuerdo al ejemplo que me enviaron
-      List<String> columnas = [
-        "Nombre", "Apellido1", "Apellido2", "Género", "Email", 
-        "Teléfono", "Tel. referencia", "Tipo de zona", "Carrera", 
-        "Preparatoria", "Medio enterado", "Nota"
+      // [NUEVO]: Estilos de filas alternadas (#F0FBF6 y #FFFFFF) igual que solicitudes_prueba.xlsx
+      final filaVerdeClaroStyle = ex.CellStyle(
+        backgroundColorHex: ex.ExcelColor.fromHexString('#F0FBF6'),
+      );
+      final filaBlancaStyle = ex.CellStyle(
+        backgroundColorHex: ex.ExcelColor.fromHexString('#FFFFFF'),
+      );
+
+      // Anchos de columna de solicitudes_prueba.xlsx
+      const List<double> anchosColumnas = [
+        14.0, 13.0, 13.0, 12.0, 28.0, 14.0, 15.0, 12.0, 28.0, 22.0, 20.0, 32.0
       ];
 
-      // Llenar encabezados
-      for (var i = 0; i < columnas.length; i++) {
-        var celda = hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
-        celda.value = ex.TextCellValue(columnas[i]);
+      // Insertar encabezados y configurar anchos
+      for (var col = 0; col < _columnasSolicitudes.length; col++) {
+        hoja.setColumnWidth(col, anchosColumnas[col]);
+        final celda = hoja.cell(
+          ex.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 0),
+        );
+        celda.value = ex.TextCellValue(_columnasSolicitudes[col]);
         celda.cellStyle = headerStyle;
       }
 
-      // Llenar con los datos
-      for (var i = 0; i < prospectos.length; i++) {
-        var p = prospectos[i];
-        int indiceFila = i + 1;
-        
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: indiceFila)).value = ex.TextCellValue(p.nombre);
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: indiceFila)).value = ex.TextCellValue(p.apellido1);
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: indiceFila)).value = ex.TextCellValue(p.apellido2 ?? '');
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: indiceFila)).value = ex.TextCellValue(p.genero);
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: indiceFila)).value = ex.TextCellValue(p.email);
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: indiceFila)).value = ex.TextCellValue(p.telefono);
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: indiceFila)).value = ex.TextCellValue(p.telReferencia ?? '');
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: indiceFila)).value = ex.TextCellValue(p.tipoZona);
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: indiceFila)).value = ex.TextCellValue(p.carrera);
-        //hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 10, rowIndex: indiceFila)).value = ex.TextCellValue(p.modalidad);//habilitar cuando CRM web lo incluya
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: indiceFila)).value = ex.TextCellValue(p.preparatoria);
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 10, rowIndex: indiceFila)).value = ex.TextCellValue(p.medioEnterado);
-        hoja.cell(ex.CellIndex.indexByColumnRow(columnIndex: 11, rowIndex: indiceFila)).value = ex.TextCellValue(p.nota ?? '');
+      // Insertar filas de datos
+      for (var i = 0; i < listaOrdenada.length; i++) {
+        final valoresFila = _mapearFila(listaOrdenada[i]);
+        final indiceFila = i + 1;
+        final estiloFila = (i % 2 == 0) ? filaVerdeClaroStyle : filaBlancaStyle;
+
+        for (var col = 0; col < valoresFila.length; col++) {
+          final celda = hoja.cell(
+            ex.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: indiceFila),
+          );
+          celda.value = ex.TextCellValue(valoresFila[col]);
+          celda.cellStyle = estiloFila;
+        }
       }
 
-      var fileBytes = excel.save();
+      final fileBytes = excel.save();
       if (fileBytes != null) {
-        final ahora = DateTime.now();
-        final fechaHora = "${ahora.year}${ahora.month.toString().padLeft(2, '0')}${ahora.day.toString().padLeft(2, '0')}_${ahora.hour.toString().padLeft(2, '0')}${ahora.minute.toString().padLeft(2, '0')}";
+        final fechaHora = _generarPrefijoFecha();
+        final nombreArchivo = '${fechaHora}_solicitudes_nexxus.xlsx';
 
-        final directorio = await getTemporaryDirectory();
-        final nombreArchivo = '${fechaHora}_prospectos_nexxus.xlsx';
-        final file = File('${directorio.path}/$nombreArchivo');
-        await file.writeAsBytes(fileBytes, flush: true);
-
-        await SharePlus.instance.share(
-          ShareParams(
-            files: [XFile(file.path, name: nombreArchivo, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
-            subject: 'Exportación de Prospectos (Excel)',
-          ),
+        await _compartirArchivo(
+          bytes: Uint8List.fromList(fileBytes),
+          nombreArchivo: nombreArchivo,
+          mimeType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          subject: 'Exportación de Solicitudes (Excel)',
         );
       }
     } catch (e) {
@@ -133,14 +190,86 @@ class ExportarService {
     }
   }
 
-  // función en ExportarService para obtener los datos puros de sqlite (vista previa)
-  List<List<dynamic>> obtenerDatosVistaPrevia(List<Prospecto> prospectos) {
-    List<List<dynamic>> filas = [
-      ["Nombre", "Apellido 1", "Apellido 2", "Género", "Email", "Teléfono", "Carrera", "Nota"]
-    ];
-    for (var p in prospectos) {
-      filas.add([p.nombre, p.apellido1, p.apellido2 ?? '', p.genero, p.email, p.telefono, p.carrera, p.nota ?? '']);
+  // 3. Exportar a PDF (con las 12 columnas y colores de solicitudes_prueba.xlsx) *
+  Future<void> exportarPDF(List<Prospecto> prospectos) async {
+    try {
+      final pdf = pw.Document();
+      // [MODIFICADO]: Mismo verde #1A6B4A y fondo alternado #F0FBF6 del Excel de prueba
+      final colorEncabezado = PdfColor.fromInt(0xFF1A6B4A);
+      final colorFilaAlterna = PdfColor.fromInt(0xFFF0FBF6);
+
+      final filas = prospectos.map(_mapearFila).toList();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4.landscape,
+          margin: const pw.EdgeInsets.all(20),
+          header: (context) => pw.Container(
+            margin: const pw.EdgeInsets.only(bottom: 10),
+            padding: const pw.EdgeInsets.only(bottom: 6),
+            decoration: pw.BoxDecoration(
+              border: pw.Border(
+                bottom: pw.BorderSide(color: colorEncabezado, width: 2),
+              ),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'solicitudes - UT Nexxus',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                    color: colorEncabezado,
+                  ),
+                ),
+                pw.Text(
+                  'Total: ${prospectos.length} registros',
+                  style: const pw.TextStyle(fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          build: (context) => [
+            pw.TableHelper.fromTextArray(
+              headers: _columnasSolicitudes,
+              data: filas,
+              headerStyle: pw.TextStyle(
+                color: PdfColors.white,
+                fontWeight: pw.FontWeight.bold,
+                fontSize: 7.5,
+              ),
+              headerDecoration: pw.BoxDecoration(color: colorEncabezado),
+              cellStyle: const pw.TextStyle(fontSize: 7),
+              cellAlignment: pw.Alignment.centerLeft,
+              headerAlignment: pw.Alignment.center,
+              oddRowDecoration: pw.BoxDecoration(color: colorFilaAlterna),
+            ),
+          ],
+        ),
+      );
+
+      final pdfBytes = await pdf.save();
+      final fechaHora = _generarPrefijoFecha();
+      final nombreArchivo = '${fechaHora}_solicitudes_nexxus.pdf';
+
+      await _compartirArchivo(
+        bytes: pdfBytes,
+        nombreArchivo: nombreArchivo,
+        mimeType: 'application/pdf',
+        subject: 'Exportación de Solicitudes (PDF)',
+      );
+    } catch (e) {
+      debugPrint("Error exportando a PDF: $e");
+      rethrow;
     }
-    return filas;
+  }
+
+  // 4. Vista previa (muestra exactamente las mismas 12 columnas antes de exportar)
+  List<List<dynamic>> obtenerDatosVistaPrevia(List<Prospecto> prospectos) {
+    return [
+      _columnasSolicitudes,
+      ...prospectos.map(_mapearFila),
+    ];
   }
 }

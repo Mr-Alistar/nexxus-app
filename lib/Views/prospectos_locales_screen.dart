@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:nexxus/View_Models/prospectos_locales_view_model.dart';
 import 'package:nexxus/Models/formulario_model.dart';
 import 'package:nexxus/Views/formulario_screen.dart';
+// [NUEVO]: Importamos el diálogo de vista previa para mostrar la tabla antes de exportar
+import 'package:nexxus/Widgets/Dialogos/vista_previa.dart';
 
 // Paleta del rediseño (basada en el diseño de Stitch / Tailwind teal-emerald)
 class _C {
@@ -56,7 +58,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
     final q = _consulta.toLowerCase();
     return _viewModel.prospectos.where((p) {
       final nombre =
-          "${p.nombre} ${p.apellido1} ${p.apellido2 ?? ''}".toLowerCase();
+      "${p.nombre} ${p.apellido1} ${p.apellido2 ?? ''}".toLowerCase();
       return nombre.contains(q) || p.carrera.toLowerCase().contains(q);
     }).toList();
   }
@@ -122,7 +124,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
               ),
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                 decoration: BoxDecoration(
                   color: _C.teal800,
                   borderRadius: BorderRadius.circular(999),
@@ -165,7 +167,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
               const SizedBox(width: 8),
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: _C.emerald100,
                   borderRadius: BorderRadius.circular(999),
@@ -257,7 +259,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: const [
@@ -301,7 +303,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
               const SizedBox(width: 8),
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
                   color: _C.teal100,
                   borderRadius: BorderRadius.circular(999),
@@ -337,7 +339,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                 filled: true,
                 fillColor: Colors.white,
                 contentPadding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(color: _C.slate200),
@@ -363,7 +365,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
     final sinContacto = p.status == 'sin-contacto';
     final colorEstado = sinContacto ? _C.teal600 : _C.emerald500;
     final nombreCompleto =
-        "${p.nombre} ${p.apellido1} ${p.apellido2 ?? ''}".trim();
+    "${p.nombre} ${p.apellido1} ${p.apellido2 ?? ''}".trim();
 
     return Container(
       decoration: BoxDecoration(
@@ -676,7 +678,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
     );
   }
 
-  // Botón "Exportar" con opciones Excel / CSV / PDF (solo vista, sin acción).
+  // [MODIFICADO]: Botón "Exportar" con opciones Excel / CSV / PDF ya conectadas
   Widget _botonExportar() {
     return Material(
       color: Colors.white,
@@ -710,16 +712,55 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
     );
   }
 
-  // Hoja inferior con los 3 formatos. Por ahora solo muestra las opciones
-  // (sin funcionalidad): cada una simplemente cierra la hoja.
+  // [NUEVO]: Abre el modalVistaPrevia antes de ejecutar la exportación elegida
+  void _abrirVistaPreviaYExportar({
+    required String formato,
+    required Future<void> Function(List<Prospecto> lista) accionExportar,
+  }) {
+    final listaActual = List<Prospecto>.from(_listaFiltrada);
+    final datosTabla = _viewModel.obtenerDatosVistaPrevia(listaActual);
+
+    modalVistaPrevia(
+      context: context,
+      titulo: "Vista previa ($formato)",
+      datos: datosTabla,
+      onConfirmar: () async {
+        try {
+          await accionExportar(listaActual);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Error al exportar en $formato: $e"),
+                backgroundColor: _C.rose600,
+              ),
+            );
+          }
+        }
+      },
+    );
+  }
+
+  // [MODIFICADO]: Hoja inferior con los 3 formatos conectados a sus métodos reales
   void _mostrarOpcionesExportar() {
+    // [NUEVO]: Validamos que existan prospectos antes de abrir el menú de exportación
+    if (_listaFiltrada.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No hay registros disponibles para exportar."),
+          backgroundColor: _C.teal800,
+        ),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
           child: Column(
@@ -751,23 +792,47 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                 style: TextStyle(fontSize: 13, color: _C.slate600),
               ),
               const SizedBox(height: 14),
+              // [MODIFICADO]: Conectado a exportarExcel() con vista previa
               _opcionExportar(
                 icono: Icons.table_chart_outlined,
                 titulo: "Excel",
                 subtitulo: "Hoja de cálculo (.xlsx)",
                 color: _C.emerald600,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _abrirVistaPreviaYExportar(
+                    formato: "Excel",
+                    accionExportar: (lista) => _viewModel.exportarExcel(lista),
+                  );
+                },
               ),
+              // [MODIFICADO]: Conectado a exportarCSV() con vista previa
               _opcionExportar(
                 icono: Icons.description_outlined,
                 titulo: "CSV",
                 subtitulo: "Valores separados por comas (.csv)",
                 color: _C.teal700,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _abrirVistaPreviaYExportar(
+                    formato: "CSV",
+                    accionExportar: (lista) => _viewModel.exportarCSV(lista),
+                  );
+                },
               ),
+              // [MODIFICADO]: Conectado a exportarPDF() con vista previa
               _opcionExportar(
                 icono: Icons.picture_as_pdf_outlined,
                 titulo: "PDF",
                 subtitulo: "Documento para imprimir (.pdf)",
                 color: _C.rose600,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _abrirVistaPreviaYExportar(
+                    formato: "PDF",
+                    accionExportar: (lista) => _viewModel.exportarPDF(lista),
+                  );
+                },
               ),
             ],
           ),
@@ -776,16 +841,18 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
     );
   }
 
+  // [MODIFICADO]: Ahora recibe el parámetro 'onTap' para ejecutar la acción seleccionada
   Widget _opcionExportar({
     required IconData icono,
     required String titulo,
     required String subtitulo,
     required Color color,
+    required VoidCallback onTap,
   }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => Navigator.pop(context), // sin funcionalidad por ahora
+        onTap: onTap, // [MODIFICADO]: Antes solo hacía Navigator.pop(context)
         borderRadius: BorderRadius.circular(14),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
@@ -831,7 +898,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
   // ====== Utilidades ======
   String _iniciales(String nombre) {
     final partes =
-        nombre.split(' ').where((s) => s.trim().isNotEmpty).toList();
+    nombre.split(' ').where((s) => s.trim().isNotEmpty).toList();
     if (partes.isEmpty) return '?';
     if (partes.length == 1) {
       return partes.first.substring(0, 1).toUpperCase();
@@ -911,18 +978,20 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              // [RESUELTO]: _viewModel.subirNexxus() ya envía a la tabla 'solicitudes'
+              // y elimina automáticamente de SQLite los registros enviados con éxito.
               final resultados = await _viewModel.subirNexxus();
-              //pendiente: eliminar la base de datos local si se suben los registros exitosamente.
               if (context.mounted) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
+                    // [MODIFICADO]: Muestra cuántos fueron nuevos, cuántos duplicados se omitieron y cuántos fallaron
                     content: Text(
-                      "Prospectos enviados: ${resultados['exitos']}, Fallidos: ${resultados['fallos']}",
+                      "Nuevos: ${resultados['exitos']} | Omitidos (duplicados): ${resultados['duplicados'] ?? 0} | Fallidos: ${resultados['fallos']}",
                     ),
                     backgroundColor: resultados['fallos'] == 0
                         ? _C.teal600
-                        : _C.rose600,
+                        : _C.rose600, // (o _C.rose500 en inicio_dashboard_screen.dart)
                   ),
                 );
               }

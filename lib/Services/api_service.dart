@@ -9,9 +9,8 @@ class ApiService {
 
   // URL base del CRM Nexxus (Laravel).
   // - Emulador Android: usar http://10.0.2.2:8000/api
-  // - Dispositivo físico / producción: el dominio real del CRM, ej:
-  //   https://crmnexxus.datacode.space/api
-  static const String _baseUrl = 'http://10.252.0.69:8000/api';
+  // - Dispositivo físico / producción: usar la IP local de tu PC o dominio real
+  static const String _baseUrl = 'http://192.168.1.71:8000/api';
 
   final Dio _dio = Dio(
     BaseOptions(
@@ -22,9 +21,6 @@ class ApiService {
     ),
   );
 
-  // Inicia sesión contra el CRM y guarda el token Sanctum para las
-  // siguientes peticiones. Retorna null si todo salió bien, o un mensaje
-  // de error listo para mostrar al usuario.
   Future<String?> login(String email, String password) async {
     try {
       final respuesta = await _dio.post(
@@ -56,13 +52,15 @@ class ApiService {
     }
   }
 
-  // Envía un prospecto al CRM. El id_asesor lo determina el servidor según
-  // el token, así que aquí solo mandamos los datos capturados.
-  Future<bool> enviarProspecto(Prospecto prospecto) async {
+  // [NUEVO]: Envía un registro a '/solicitudes' y devuelve el estado exacto:
+  // - 'creado': Se guardó como nuevo en el CRM (HTTP 201).
+  // - 'duplicado': Ya existía en el CRM (ej. importado por Excel) y fue omitido (HTTP 200 con duplicado: true).
+  // - 'error': Falló la conexión o la validación.
+  Future<String> enviarSolicitud(Prospecto prospecto) async {
     final token = AuthSession.instancia.token;
     if (token == null || token.isEmpty) {
       debugPrint('No hay sesión activa: inicie sesión antes de subir.');
-      return false;
+      return 'error';
     }
 
     try {
@@ -83,7 +81,7 @@ class ApiService {
       };
 
       final respuesta = await _dio.post(
-        '/prospectos',
+        '/solicitudes',
         data: datos,
         options: Options(
           headers: {
@@ -92,24 +90,46 @@ class ApiService {
           },
         ),
       );
-      return respuesta.statusCode == 200 || respuesta.statusCode == 201;
+
+      if (respuesta.statusCode == 200 || respuesta.statusCode == 201) {
+        final data = respuesta.data;
+        if (data is Map && data['duplicado'] == true) {
+          return 'duplicado';
+        }
+        return 'creado';
+      }
+      return 'error';
+    } on DioException catch (e) {
+      debugPrint(
+        'Error HTTP al subir solicitud (${e.response?.statusCode}): ${e.response?.data}',
+      );
+      return 'error';
     } catch (e) {
       debugPrint('Error de conexión: $e');
-      return false;
+      return 'error';
     }
+  }
+
+  // Se mantiene por compatibilidad
+  Future<bool> enviarProspecto(Prospecto prospecto) async {
+    final estado = await enviarSolicitud(prospecto);
+    return estado == 'creado' || estado == 'duplicado';
   }
 
   Future<Map<String, int>> subirVariosProspectos(List<Prospecto> lista) async {
     int exitos = 0;
+    int duplicados = 0;
     int fallos = 0;
     for (var p in lista) {
-      final resultado = await enviarProspecto(p);
-      if (resultado) {
+      final estado = await enviarSolicitud(p);
+      if (estado == 'creado') {
         exitos++;
+      } else if (estado == 'duplicado') {
+        duplicados++;
       } else {
         fallos++;
       }
     }
-    return {'exitos': exitos, 'fallos': fallos};
+    return {'exitos': exitos, 'duplicados': duplicados, 'fallos': fallos};
   }
 }
