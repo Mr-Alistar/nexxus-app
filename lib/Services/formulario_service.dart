@@ -100,4 +100,21 @@ class FormularioService {
       whereArgs: [id],
     );
   }
+
+  // Obtiene el número total de prospectos guardados localmente
+  Future<int> contarProspectos() async {
+    final db = await instancia.database;
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM prospectos');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  // Obtiene el conteo de prospectos filtrados por estatus (ej. 'sin-contacto')
+  Future<int> contarProspectosPorStatus(String status) async {
+    final db = await instancia.database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM prospectos WHERE status = ?',
+      [status],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
 }

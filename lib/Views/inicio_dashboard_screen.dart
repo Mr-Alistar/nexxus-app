@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:nexxus/View_Models/dashboard_view_model.dart';
 
 // Paleta del rediseño (teal / esmeralda), consistente con la sección Registrados.
 class _C {
@@ -23,62 +24,45 @@ class _C {
   static const amber500 = Color(0xFFF59E0B);
 }
 
-// Pantalla de Inicio (dashboard). SOLO VISTA: datos de ejemplo, sin lógica.
 class InicioDashboardScreen extends StatelessWidget {
-  const InicioDashboardScreen({super.key});
+  final DashboardViewModel viewModel;
 
-  // ---- Datos de ejemplo (estáticos, solo para mostrar el diseño) ----
-  static const int _total = 142;
-  static const int _pendientes = 6;
-  static const int _seguimiento = 58;
-  static const int _sinContacto = 24;
-
-  static const List<_Carrera> _carreras = [
-    _Carrera("TSU Gastronomía", 38, _C.teal700),
-    _Carrera("Ing. Datos e Inteligencia Artificial", 32, _C.teal600),
-    _Carrera("Ing. Mecatrónica", 26, _C.emerald500),
-    _Carrera("Lic. en Gestión Financiera", 20, _C.emerald600),
-    _Carrera("Ing. TI e Innovación Digital", 16, _C.teal800),
-    _Carrera("Lic. Negocios y Mercadotecnia", 10, _C.amber500),
-  ];
-
-  static const List<_Segmento> _embudoDatos = [
-    _Segmento("En seguimiento", 58, _C.teal700),
-    _Segmento("En comunicación", 45, _C.emerald500),
-    _Segmento("Sin contacto", 24, _C.slate400),
-    _Segmento("Rechazado", 15, _C.rose500),
-  ];
-
-  static const List<_Reciente> _recientes = [
-    _Reciente("Juan Pérez García", "Ing. en Datos e IA"),
-    _Reciente("Mariana Soto Pech", "TSU Gastronomía"),
-    _Reciente("Omar Castro Hernández", "Lic. en Gestión Financiera"),
-    _Reciente("Sofía Méndez Canché", "Ing. Mecatrónica"),
-  ];
+  const InicioDashboardScreen({
+    super.key,
+    required this.viewModel,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _C.bg,
-      body: SafeArea(
-        bottom: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [
-            _bienvenida(),
-            const SizedBox(height: 18),
-            _bannerSync(),
-            const SizedBox(height: 18),
-            _kpis(),
-            const SizedBox(height: 18),
-            _demandaPorCarrera(),
-            const SizedBox(height: 18),
-            _embudo(),
-            const SizedBox(height: 18),
-            _ultimosCapturados(),
-          ],
-        ),
-      ),
+    return ListenableBuilder(
+      listenable: viewModel,
+      builder: (context, child) {
+        final int total = viewModel.totalProspectos;
+        final int pendientes = viewModel.sinContacto;
+        final int seguimiento = 0;
+        final int sinContacto = viewModel.sinContacto;
+
+        return Scaffold(
+          backgroundColor: _C.bg,
+          body: SafeArea(
+            bottom: false,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              children: [
+                _bienvenida(),
+                const SizedBox(height: 18),
+                _bannerSync(pendientes),
+                const SizedBox(height: 18),
+                _kpis(total, pendientes, seguimiento, sinContacto),
+                const SizedBox(height: 18),
+                _demandaPorCarrera(total),
+                const SizedBox(height: 18),
+                _embudo(total, sinContacto),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -95,7 +79,7 @@ class InicioDashboardScreen extends StatelessWidget {
                 children: [
                   const Flexible(
                     child: Text(
-                      "¡Hola, Carlos Pech!",
+                      "¡Hola, Asesor!",
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -136,15 +120,6 @@ class InicioDashboardScreen extends StatelessWidget {
                 "Asesor de Admisiones • UT Chetumal",
                 style: TextStyle(fontSize: 12, color: _C.slate600),
               ),
-              const SizedBox(height: 2),
-              const Text(
-                "Jueves, 24 de octubre de 2024",
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: _C.teal700,
-                ),
-              ),
             ],
           ),
         ),
@@ -162,7 +137,7 @@ class InicioDashboardScreen extends StatelessWidget {
           ),
           alignment: Alignment.center,
           child: const Text(
-            "CP",
+            "UT",
             style: TextStyle(
               color: Colors.white,
               fontSize: 15,
@@ -175,7 +150,7 @@ class InicioDashboardScreen extends StatelessWidget {
   }
 
   // ===== 2. Banner de sincronización =====
-  Widget _bannerSync() {
+  Widget _bannerSync(int pendientes) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -206,21 +181,21 @@ class InicioDashboardScreen extends StatelessWidget {
                 child: const Icon(Icons.cloud_sync, color: Colors.white),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "$_pendientes fichas pendientes",
-                      style: TextStyle(
+                      "$pendientes fichas pendientes",
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 2),
-                    Text(
-                      "Capturadas sin conexión, listas para enviar a Nexxus.",
+                    const SizedBox(height: 2),
+                    const Text(
+                      "Capturadas localmente, listas para enviar a Nexxus.",
                       style: TextStyle(color: Colors.white, fontSize: 12),
                     ),
                   ],
@@ -228,37 +203,13 @@ class InicioDashboardScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 11),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.cloud_upload, size: 18, color: _C.teal700),
-                SizedBox(width: 8),
-                Text(
-                  "Subir todo",
-                  style: TextStyle(
-                    color: _C.teal800,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
 
   // ===== 3. KPIs =====
-  Widget _kpis() {
+  Widget _kpis(int total, int pendientes, int seguimiento, int sinContacto) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -276,7 +227,7 @@ class InicioDashboardScreen extends StatelessWidget {
             Expanded(
               child: _kpiCard(
                 icono: Icons.groups,
-                valor: "$_total",
+                valor: "$total",
                 etiqueta: "Total prospectos",
                 colorIcono: _C.teal700,
                 fondoIcono: _C.teal50,
@@ -286,7 +237,7 @@ class InicioDashboardScreen extends StatelessWidget {
             Expanded(
               child: _kpiCard(
                 icono: Icons.cloud_sync,
-                valor: "$_pendientes",
+                valor: "$pendientes",
                 etiqueta: "Por subir a CRM",
                 colorIcono: _C.emerald800,
                 fondoIcono: _C.emerald50,
@@ -301,7 +252,7 @@ class InicioDashboardScreen extends StatelessWidget {
             Expanded(
               child: _kpiCard(
                 icono: Icons.contact_phone,
-                valor: "$_seguimiento",
+                valor: "$seguimiento",
                 etiqueta: "En seguimiento",
                 colorIcono: _C.teal600,
                 fondoIcono: _C.teal50,
@@ -311,7 +262,7 @@ class InicioDashboardScreen extends StatelessWidget {
             Expanded(
               child: _kpiCard(
                 icono: Icons.phone_missed,
-                valor: "$_sinContacto",
+                valor: "$sinContacto",
                 etiqueta: "Sin contacto",
                 colorIcono: _C.slate600,
                 fondoIcono: _C.slate100,
@@ -377,26 +328,31 @@ class InicioDashboardScreen extends StatelessWidget {
   }
 
   // ===== 4. Demanda por carrera =====
-  Widget _demandaPorCarrera() {
+  Widget _demandaPorCarrera(int total) {
+    final List<_Carrera> carrerasEjemplo = [
+      _Carrera("Ing. Datos e Inteligencia Artificial", total > 0 ? (total * 0.5).round() : 0, _C.teal600),
+      _Carrera("Ing. Mecatrónica", total > 0 ? (total * 0.3).round() : 0, _C.emerald500),
+      _Carrera("TSU Gastronomía", total > 0 ? (total * 0.2).round() : 0, _C.teal700),
+    ];
+
     return _tarjeta(
       titulo: "Demanda por carrera",
-      subtitulo: "Distribución de $_total aspirantes registrados",
+      subtitulo: "Distribución de $total aspirantes registrados",
       icono: Icons.bar_chart,
       hijo: Column(
         children: [
-          for (int i = 0; i < _carreras.length; i++)
+          for (int i = 0; i < carrerasEjemplo.length; i++)
             Padding(
-              padding:
-                  EdgeInsets.only(bottom: i == _carreras.length - 1 ? 0 : 12),
-              child: _barraCarrera(_carreras[i]),
+              padding: EdgeInsets.only(bottom: i == carrerasEjemplo.length - 1 ? 0 : 12),
+              child: _barraCarrera(carrerasEjemplo[i], total),
             ),
         ],
       ),
     );
   }
 
-  Widget _barraCarrera(_Carrera c) {
-    final pct = _total == 0 ? 0.0 : c.cantidad / _total;
+  Widget _barraCarrera(_Carrera c, int total) {
+    final pct = total == 0 ? 0.0 : c.cantidad / total;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -436,8 +392,12 @@ class InicioDashboardScreen extends StatelessWidget {
   }
 
   // ===== 5. Embudo por estado (donut) =====
-  Widget _embudo() {
-    const total = 142;
+  Widget _embudo(int total, int sinContacto) {
+    final List<_Segmento> embudoDatos = [
+      _Segmento("Sin contacto", sinContacto, _C.slate400),
+      _Segmento("En proceso", total - sinContacto, _C.teal700),
+    ];
+
     return _tarjeta(
       titulo: "Embudo de prospección",
       subtitulo: "Estado de conversión y atención",
@@ -448,20 +408,20 @@ class InicioDashboardScreen extends StatelessWidget {
             width: 110,
             height: 110,
             child: CustomPaint(
-              painter: _DonutPainter(_embudoDatos, total),
-              child: const Center(
+              painter: _DonutPainter(embudoDatos, total),
+              child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       "$total",
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: _C.slate900,
                       ),
                     ),
-                    Text(
+                    const Text(
                       "Aspirantes",
                       style: TextStyle(fontSize: 10, color: _C.slate600),
                     ),
@@ -474,7 +434,7 @@ class InicioDashboardScreen extends StatelessWidget {
           Expanded(
             child: Column(
               children: [
-                for (final s in _embudoDatos)
+                for (final s in embudoDatos)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
@@ -498,7 +458,7 @@ class InicioDashboardScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          "${s.valor} (${(s.valor / total * 100).round()}%)",
+                          "${s.valor} (${total == 0 ? 0 : (s.valor / total * 100).round()}%)",
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -508,106 +468,6 @@ class InicioDashboardScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===== 6. Últimos capturados =====
-  Widget _ultimosCapturados() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Últimos capturados",
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: _C.slate900,
-          ),
-        ),
-        const SizedBox(height: 10),
-        ..._recientes.map(_filaReciente),
-      ],
-    );
-  }
-
-  Widget _filaReciente(_Reciente r) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _C.slate100),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: const BoxDecoration(
-              color: _C.emerald50,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              _iniciales(r.nombre),
-              style: const TextStyle(
-                color: _C.emerald800,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  r.nombre,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: _C.slate900,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  r.carrera,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: _C.slate600),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: _C.emerald100,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.cloud_off, size: 12, color: _C.emerald800),
-                SizedBox(width: 4),
-                Text(
-                  "Local",
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: _C.emerald800,
-                  ),
-                ),
               ],
             ),
           ),
@@ -679,15 +539,6 @@ class InicioDashboardScreen extends StatelessWidget {
       ),
     );
   }
-
-  String _iniciales(String nombre) {
-    final partes =
-        nombre.split(' ').where((s) => s.trim().isNotEmpty).toList();
-    if (partes.isEmpty) return '?';
-    if (partes.length == 1) return partes.first.substring(0, 1).toUpperCase();
-    return (partes[0].substring(0, 1) + partes[1].substring(0, 1))
-        .toUpperCase();
-  }
 }
 
 class _Carrera {
@@ -702,12 +553,6 @@ class _Segmento {
   final int valor;
   final Color color;
   const _Segmento(this.etiqueta, this.valor, this.color);
-}
-
-class _Reciente {
-  final String nombre;
-  final String carrera;
-  const _Reciente(this.nombre, this.carrera);
 }
 
 // Pintor del donut del embudo de estados.

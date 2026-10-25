@@ -91,7 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             index: _viewModel.indiceActual,
             children: [
               // Tab Inicio (dashboard de estadísticas — solo vista)
-              const InicioDashboardScreen(),
+              InicioDashboardScreen(viewModel: _viewModel),
               // Tab Registrados (SQL interno)
               ProspectosLocalesScreen(
                 onIrInicio: () => _viewModel.cambiarIndice(0),
