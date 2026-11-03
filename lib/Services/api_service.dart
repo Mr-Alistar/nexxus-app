@@ -11,7 +11,7 @@ class ApiService {
   // - Emulador Android: usar http://10.0.2.2:8000/api
   // - Dispositivo físico / producción: el dominio real del CRM, ej:
   //   https://crmnexxus.datacode.space/api
-  static const String _baseUrl = 'http://10.252.0.69:8000/api';
+  static const String _baseUrl = 'http://127.0.0.1:8000/api';
 
   final Dio _dio = Dio(
     BaseOptions(
