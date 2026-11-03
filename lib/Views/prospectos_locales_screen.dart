@@ -73,6 +73,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
           listenable: _viewModel,
           builder: (context, _) {
             final total = _viewModel.prospectos.length;
+            final pendientes = _viewModel.pendientes.length;
             final lista = _listaFiltrada;
 
             if (_viewModel.cargando) {
@@ -81,8 +82,8 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
 
             return CustomScrollView(
               slivers: [
-                SliverToBoxAdapter(child: _encabezado(total)),
-                SliverToBoxAdapter(child: _heroSync(total)),
+                SliverToBoxAdapter(child: _encabezado(total, pendientes)),
+                SliverToBoxAdapter(child: _heroSync(pendientes)),
                 SliverToBoxAdapter(child: _barraLista(total)),
                 if (lista.isEmpty)
                   SliverFillRemaining(
@@ -109,7 +110,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
   }
 
   // ====== Encabezado (chip de estado + menú de exportación) ======
-  Widget _encabezado(int total) {
+  Widget _encabezado(int total, int pendientes) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
       child: Column(
@@ -174,7 +175,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                   border: Border.all(color: _C.emerald200),
                 ),
                 child: Text(
-                  "$total en cola",
+                  pendientes == 0 ? "Todo en la nube" : "$pendientes en cola",
                   style: const TextStyle(
                     color: _C.emerald800,
                     fontSize: 11,
@@ -195,7 +196,8 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
   }
 
   // ====== Hero: banner de sincronización con "Subir todo" ======
-  Widget _heroSync(int total) {
+  Widget _heroSync(int pendientes) {
+    final hayPendientes = pendientes > 0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Container(
@@ -223,16 +225,19 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
               ),
-              child: const Icon(Icons.cloud_sync, color: Colors.white),
+              child: Icon(
+                hayPendientes ? Icons.cloud_sync : Icons.cloud_done,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "Pendientes de subir",
-                    style: TextStyle(
+                  Text(
+                    hayPendientes ? "Pendientes de subir" : "Todo sincronizado",
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -240,7 +245,9 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    "$total fichas listas para sincronizar",
+                    hayPendientes
+                        ? "$pendientes ${pendientes == 1 ? 'ficha lista' : 'fichas listas'} para sincronizar"
+                        : "No hay registros pendientes por subir",
                     style: const TextStyle(
                       color: _C.emerald100,
                       fontSize: 12,
@@ -252,23 +259,24 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
             ),
             const SizedBox(width: 8),
             Material(
-              color: Colors.white,
+              color: hayPendientes ? Colors.white : Colors.white.withValues(alpha: 0.35),
               borderRadius: BorderRadius.circular(12),
               child: InkWell(
-                onTap: total == 0 ? null : () => _confirmarSubida(context),
+                onTap: hayPendientes ? () => _confirmarSubida(context) : null,
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Icon(Icons.upload, size: 17, color: _C.teal700),
-                      SizedBox(width: 6),
+                    children: [
+                      Icon(Icons.upload, size: 17,
+                          color: hayPendientes ? _C.teal700 : Colors.white),
+                      const SizedBox(width: 6),
                       Text(
                         "Subir todo",
                         style: TextStyle(
-                          color: _C.teal800,
+                          color: hayPendientes ? _C.teal800 : Colors.white,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -362,8 +370,9 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
 
   // ====== Tarjeta de un prospecto ======
   Widget _tarjetaProspecto(Prospecto p) {
-    final sinContacto = p.status == 'sin-contacto';
-    final colorEstado = sinContacto ? _C.teal600 : _C.emerald500;
+    // La franja y el indicador reflejan si el registro ya viaja a la nube.
+    final sincronizado = _viewModel.esSincronizado(p.id);
+    final colorEstado = sincronizado ? _C.emerald500 : _C.teal600;
     final nombreCompleto =
     "${p.nombre} ${p.apellido1} ${p.apellido2 ?? ''}".trim();
 
@@ -465,17 +474,16 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Container(
-                                          width: 6,
-                                          height: 6,
-                                          decoration: BoxDecoration(
-                                            color: colorEstado,
-                                            shape: BoxShape.circle,
-                                          ),
+                                        Icon(
+                                          sincronizado
+                                              ? Icons.cloud_done
+                                              : Icons.phone_iphone,
+                                          size: 12,
+                                          color: colorEstado,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          "Local • ${_etiquetaFecha(p.createdAt)}",
+                                          "${sincronizado ? 'En la nube' : 'Local'} • ${_etiquetaFecha(p.createdAt)}",
                                           style: const TextStyle(
                                             fontSize: 11,
                                             color: _C.slate700,
@@ -978,23 +986,66 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              // [RESUELTO]: _viewModel.subirNexxus() ya envía a la tabla 'solicitudes'
-              // y elimina automáticamente de SQLite los registros enviados con éxito.
+              // _viewModel.subirNexxus() envía a la tabla 'solicitudes' del CRM,
+              // marca los enviados como sincronizados (pasan a "En la nube") y los
+              // conserva localmente 7 días antes de eliminarlos.
               final resultados = await _viewModel.subirNexxus();
-              if (context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    // [MODIFICADO]: Muestra cuántos fueron nuevos, cuántos duplicados se omitieron y cuántos fallaron
-                    content: Text(
-                      "Nuevos: ${resultados['exitos']} | Omitidos (duplicados): ${resultados['duplicados'] ?? 0} | Fallidos: ${resultados['fallos']}",
-                    ),
-                    backgroundColor: resultados['fallos'] == 0
-                        ? _C.teal600
-                        : _C.rose600, // (o _C.rose500 en inicio_dashboard_screen.dart)
-                  ),
-                );
+              if (!context.mounted) return;
+              Navigator.pop(context);
+
+              final nuevos = resultados['exitos'] ?? 0;
+              final duplicados = resultados['duplicados'] ?? 0;
+              final fallos = resultados['fallos'] ?? 0;
+              final huboErrores = fallos > 0;
+
+              // Mensaje claro: título de resultado + desglose en segunda línea.
+              final partes = <String>[];
+              if (nuevos > 0) partes.add("$nuevos ${nuevos == 1 ? 'nuevo' : 'nuevos'}");
+              if (duplicados > 0) {
+                partes.add("$duplicados ya ${duplicados == 1 ? 'estaba' : 'estaban'} en la nube");
               }
+              if (fallos > 0) partes.add("$fallos sin subir");
+              final detalle = partes.isEmpty ? "No había registros pendientes" : partes.join(" · ");
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 4),
+                  backgroundColor: huboErrores ? _C.rose600 : _C.emerald600,
+                  content: Row(
+                    children: [
+                      Icon(
+                        huboErrores ? Icons.error_outline : Icons.cloud_done,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              huboErrores
+                                  ? "Subida incompleta"
+                                  : "Subida completada",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              huboErrores
+                                  ? "$detalle. Revisa tu conexión e intenta de nuevo."
+                                  : detalle,
+                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(backgroundColor: _C.teal600),
             child: const Text("Subir", style: TextStyle(color: Colors.white)),

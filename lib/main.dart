@@ -13,12 +13,15 @@ import 'package:nexxus/Views/carrera_screen.dart';
 import 'package:nexxus/Views/acerca_screen.dart';
 import 'package:nexxus/Views/dashboard_screen.dart';
 import 'package:nexxus/Services/db_init.dart';
+import 'package:nexxus/Services/formulario_service.dart';
 
-void main() {
+void main() async {
   // inicio minimo requerido para arrancar flutter
   WidgetsFlutterBinding.ensureInitialized();
   // Configura el motor de base de datos según la plataforma (web / escritorio / móvil).
   initDatabaseFactory();
+  // Siembra 10 registros de demostración la primera vez (solo si la BD está vacía).
+  await FormularioService.instancia.sembrarDatosDemoSiVacio();
   runApp(const MainApp());
 }
 
