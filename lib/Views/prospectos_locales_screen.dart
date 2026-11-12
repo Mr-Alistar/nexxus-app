@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:nexxus/View_Models/prospectos_locales_view_model.dart';
 import 'package:nexxus/Models/formulario_model.dart';
 import 'package:nexxus/Views/formulario_screen.dart';
-// [NUEVO]: Importamos el diálogo de vista previa para mostrar la tabla antes de exportar
 import 'package:nexxus/Widgets/Dialogos/vista_previa.dart';
 
 // Paleta del rediseño (basada en el diseño de Stitch / Tailwind teal-emerald)
@@ -31,7 +30,6 @@ class _C {
 }
 
 class ProspectosLocalesScreen extends StatefulWidget {
-  // Permite que el botón "Regresar al menú principal" vuelva al tab de inicio.
   final VoidCallback? onIrInicio;
   const ProspectosLocalesScreen({super.key, this.onIrInicio});
 
@@ -46,13 +44,17 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
   bool _buscando = false;
   String _consulta = '';
 
+  // Controla si cada grupo está expandido (abierto) o contraído (cerrado)
+  bool _localExpandido = true;
+  bool _nubeExpandido = true;
+
   @override
   void initState() {
     super.initState();
     _viewModel.cargarProspectos();
   }
 
-  // Filtra la lista por nombre completo o carrera.
+  // Filtra la lista por nombre completo o carrera en ambos grupos.
   List<Prospecto> get _listaFiltrada {
     if (_consulta.trim().isEmpty) return _viewModel.prospectos;
     final q = _consulta.toLowerCase();
@@ -72,8 +74,15 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
         child: ListenableBuilder(
           listenable: _viewModel,
           builder: (context, _) {
-            final total = _viewModel.prospectos.length;
+            final totalGeneral = _viewModel.prospectos.length;
+            final totalPendientes = _viewModel.prospectosLocales.length;
             final lista = _listaFiltrada;
+
+            // Separamos los resultados filtrados en "Local (pendientes)" y "En la nube"
+            final localesFiltrados =
+            lista.where((p) => p.status != 'sincronizado').toList();
+            final nubeFiltrados =
+            lista.where((p) => p.status == 'sincronizado').toList();
 
             if (_viewModel.cargando) {
               return const Center(child: CircularProgressIndicator());
@@ -81,25 +90,88 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
 
             return CustomScrollView(
               slivers: [
-                SliverToBoxAdapter(child: _encabezado(total)),
-                SliverToBoxAdapter(child: _heroSync(total)),
-                SliverToBoxAdapter(child: _barraLista(total)),
+                SliverToBoxAdapter(child: _encabezado(totalPendientes)),
+                SliverToBoxAdapter(child: _heroSync(totalPendientes)),
+                SliverToBoxAdapter(child: _barraLista(totalGeneral)),
                 if (lista.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
-                    child: _estadoVacio(total),
+                    child: _estadoVacio(totalGeneral),
                   )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    sliver: SliverList.separated(
-                      itemCount: lista.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 14),
-                      itemBuilder: (context, index) =>
-                          _tarjetaProspecto(lista[index]),
+                else ...[
+                  // ====== GRUPO 1: LOCAL (PENDIENTES) ======
+                  SliverToBoxAdapter(
+                    child: _encabezadoSeccionGrupo(
+                      titulo: "Local (pendientes)",
+                      subtitulo: "Pendientes de subir al CRM",
+                      cantidad: localesFiltrados.length,
+                      expandido: _localExpandido,
+                      icono: Icons.schedule_send_rounded,
+                      colorPrincipal: _C.teal700,
+                      colorFondoBadge: _C.teal100,
+                      colorTextoBadge: _C.teal900,
+                      onTap: () =>
+                          setState(() => _localExpandido = !_localExpandido),
                     ),
                   ),
-                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                  if (_localExpandido)
+                    if (localesFiltrados.isEmpty)
+                      SliverToBoxAdapter(
+                        child: _mensajeGrupoVacio(
+                          _consulta.trim().isEmpty
+                              ? "No hay aspirantes pendientes de subir."
+                              : "Sin coincidencias en Local (pendientes).",
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                        sliver: SliverList.separated(
+                          itemCount: localesFiltrados.length,
+                          separatorBuilder: (_, _) =>
+                          const SizedBox(height: 14),
+                          itemBuilder: (context, index) =>
+                              _tarjetaProspecto(localesFiltrados[index]),
+                        ),
+                      ),
+
+                  // ====== GRUPO 2: EN LA NUBE ======
+                  SliverToBoxAdapter(
+                    child: _encabezadoSeccionGrupo(
+                      titulo: "En la nube",
+                      subtitulo: "Sincronizados con el servidor Nexxus",
+                      cantidad: nubeFiltrados.length,
+                      expandido: _nubeExpandido,
+                      icono: Icons.cloud_done_rounded,
+                      colorPrincipal: _C.emerald600,
+                      colorFondoBadge: _C.emerald100,
+                      colorTextoBadge: _C.emerald800,
+                      onTap: () =>
+                          setState(() => _nubeExpandido = !_nubeExpandido),
+                    ),
+                  ),
+                  if (_nubeExpandido)
+                    if (nubeFiltrados.isEmpty)
+                      SliverToBoxAdapter(
+                        child: _mensajeGrupoVacio(
+                          _consulta.trim().isEmpty
+                              ? "Aún no hay aspirantes sincronizados en la nube."
+                              : "Sin coincidencias en En la nube.",
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                        sliver: SliverList.separated(
+                          itemCount: nubeFiltrados.length,
+                          separatorBuilder: (_, _) =>
+                          const SizedBox(height: 14),
+                          itemBuilder: (context, index) =>
+                              _tarjetaProspecto(nubeFiltrados[index]),
+                        ),
+                      ),
+                ],
+                const SliverToBoxAdapter(child: SizedBox(height: 20)),
               ],
             );
           },
@@ -108,8 +180,161 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
     );
   }
 
+  // Encabezado interactivo para contraer/expandir cada grupo
+  Widget _encabezadoSeccionGrupo({
+    required String titulo,
+    required String subtitulo,
+    required int cantidad,
+    required bool expandido,
+    required IconData icono,
+    required Color colorPrincipal,
+    required Color colorFondoBadge,
+    required Color colorTextoBadge,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: expandido
+                    ? colorPrincipal.withValues(alpha: 0.35)
+                    : _C.slate200,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _C.teal900.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: colorPrincipal.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(icono, size: 20, color: colorPrincipal),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              titulo,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: _C.slate900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colorFondoBadge,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              "$cantidad",
+                              style: TextStyle(
+                                color: colorTextoBadge,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitulo,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: _C.slate600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                AnimatedRotation(
+                  turns: expandido ? 0.5 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: _C.slate100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 22,
+                      color: _C.slate700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _mensajeGrupoVacio(String mensaje) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _C.slate200),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.info_outline, size: 16, color: _C.slate400),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                mensaje,
+                style: const TextStyle(fontSize: 12, color: _C.slate600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ====== Encabezado (chip de estado + menú de exportación) ======
-  Widget _encabezado(int total) {
+  Widget _encabezado(int totalPendientes) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
       child: Column(
@@ -174,7 +399,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                   border: Border.all(color: _C.emerald200),
                 ),
                 child: Text(
-                  "$total en cola",
+                  "$totalPendientes en cola",
                   style: const TextStyle(
                     color: _C.emerald800,
                     fontSize: 11,
@@ -195,7 +420,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
   }
 
   // ====== Hero: banner de sincronización con "Subir todo" ======
-  Widget _heroSync(int total) {
+  Widget _heroSync(int totalPendientes) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Container(
@@ -240,7 +465,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    "$total fichas listas para sincronizar",
+                    "$totalPendientes fichas listas para sincronizar",
                     style: const TextStyle(
                       color: _C.emerald100,
                       fontSize: 12,
@@ -255,20 +480,27 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
               child: InkWell(
-                onTap: total == 0 ? null : () => _confirmarSubida(context),
+                onTap: totalPendientes == 0
+                    ? null
+                    : () => _confirmarSubida(context),
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Icon(Icons.upload, size: 17, color: _C.teal700),
-                      SizedBox(width: 6),
+                    children: [
+                      Icon(
+                        Icons.upload,
+                        size: 17,
+                        color: totalPendientes == 0 ? _C.slate400 : _C.teal700,
+                      ),
+                      const SizedBox(width: 6),
                       Text(
                         "Subir todo",
                         style: TextStyle(
-                          color: _C.teal800,
+                          color:
+                          totalPendientes == 0 ? _C.slate400 : _C.teal800,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -287,7 +519,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
   // ====== Barra "Lista de aspirantes" + total + búsqueda ======
   Widget _barraLista(int total) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
       child: Column(
         children: [
           Row(
@@ -362,8 +594,11 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
 
   // ====== Tarjeta de un prospecto ======
   Widget _tarjetaProspecto(Prospecto p) {
-    final sinContacto = p.status == 'sin-contacto';
-    final colorEstado = sinContacto ? _C.teal600 : _C.emerald500;
+    final sincronizado = p.status == 'sincronizado';
+    final colorEstado = sincronizado ? _C.emerald500 : _C.teal600;
+    final etiquetaOrigen = sincronizado ? "En la nube" : "Local";
+    final fechaMostrar =
+    sincronizado ? (p.updatedAt ?? p.createdAt) : p.createdAt;
     final nombreCompleto =
     "${p.nombre} ${p.apellido1} ${p.apellido2 ?? ''}".trim();
 
@@ -382,7 +617,6 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
       ),
       child: Column(
         children: [
-          // Franja de color de estado a la izquierda
           IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -430,8 +664,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                                       decoration: BoxDecoration(
                                         color: _C.teal50,
                                         borderRadius: BorderRadius.circular(7),
-                                        border: Border.all(
-                                            color: _C.teal100),
+                                        border: Border.all(color: _C.teal100),
                                       ),
                                       child: Text(
                                         "#${p.id.toString().padLeft(3, '0')}",
@@ -459,27 +692,30 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: _C.slate100,
+                                      color: sincronizado
+                                          ? _C.emerald50
+                                          : _C.slate100,
                                       borderRadius: BorderRadius.circular(999),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Container(
-                                          width: 6,
-                                          height: 6,
-                                          decoration: BoxDecoration(
-                                            color: colorEstado,
-                                            shape: BoxShape.circle,
-                                          ),
+                                        Icon(
+                                          sincronizado
+                                              ? Icons.cloud_done_rounded
+                                              : Icons.circle,
+                                          size: sincronizado ? 13 : 7,
+                                          color: colorEstado,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          "Local • ${_etiquetaFecha(p.createdAt)}",
-                                          style: const TextStyle(
+                                          "$etiquetaOrigen • ${_etiquetaFecha(fechaMostrar)}",
+                                          style: TextStyle(
                                             fontSize: 11,
-                                            color: _C.slate700,
-                                            fontWeight: FontWeight.w500,
+                                            color: sincronizado
+                                                ? _C.emerald800
+                                                : _C.slate700,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ],
@@ -678,7 +914,6 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
     );
   }
 
-  // [MODIFICADO]: Botón "Exportar" con opciones Excel / CSV / PDF ya conectadas
   Widget _botonExportar() {
     return Material(
       color: Colors.white,
@@ -712,7 +947,6 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
     );
   }
 
-  // [NUEVO]: Abre el modalVistaPrevia antes de ejecutar la exportación elegida
   void _abrirVistaPreviaYExportar({
     required String formato,
     required Future<void> Function(List<Prospecto> lista) accionExportar,
@@ -741,9 +975,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
     );
   }
 
-  // [MODIFICADO]: Hoja inferior con los 3 formatos conectados a sus métodos reales
   void _mostrarOpcionesExportar() {
-    // [NUEVO]: Validamos que existan prospectos antes de abrir el menú de exportación
     if (_listaFiltrada.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -792,7 +1024,6 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                 style: TextStyle(fontSize: 13, color: _C.slate600),
               ),
               const SizedBox(height: 14),
-              // [MODIFICADO]: Conectado a exportarExcel() con vista previa
               _opcionExportar(
                 icono: Icons.table_chart_outlined,
                 titulo: "Excel",
@@ -806,7 +1037,6 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                   );
                 },
               ),
-              // [MODIFICADO]: Conectado a exportarCSV() con vista previa
               _opcionExportar(
                 icono: Icons.description_outlined,
                 titulo: "CSV",
@@ -820,7 +1050,6 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
                   );
                 },
               ),
-              // [MODIFICADO]: Conectado a exportarPDF() con vista previa
               _opcionExportar(
                 icono: Icons.picture_as_pdf_outlined,
                 titulo: "PDF",
@@ -841,7 +1070,6 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
     );
   }
 
-  // [MODIFICADO]: Ahora recibe el parámetro 'onTap' para ejecutar la acción seleccionada
   Widget _opcionExportar({
     required IconData icono,
     required String titulo,
@@ -852,7 +1080,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap, // [MODIFICADO]: Antes solo hacía Navigator.pop(context)
+        onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
@@ -907,7 +1135,6 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
         .toUpperCase();
   }
 
-  // Devuelve una fecha corta (dd/MM HH:mm) a partir del ISO guardado.
   String _etiquetaFecha(String? iso) {
     if (iso == null || iso.isEmpty) return 'reciente';
     final fecha = DateTime.tryParse(iso);
@@ -929,7 +1156,7 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         content: const Text(
-          "¿Está seguro de que desea eliminar este prospecto localmente?",
+          "¿Está seguro de que desea eliminar este prospecto del dispositivo?",
         ),
         actions: [
           TextButton(
@@ -962,36 +1189,34 @@ class _ProspectosLocalesScreenState extends State<ProspectosLocalesScreen> {
   void _confirmarSubida(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: const Text(
           "Confirmar subida",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         content: const Text(
-          "¿Desea enviar todos los registros locales al servidor Nexxus?",
+          "¿Desea sincronizar los registros pendientes con el servidor Nexxus?",
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text("Cancelar"),
           ),
           ElevatedButton(
             onPressed: () async {
-              // [RESUELTO]: _viewModel.subirNexxus() ya envía a la tabla 'solicitudes'
-              // y elimina automáticamente de SQLite los registros enviados con éxito.
+              Navigator.pop(dialogContext);
               final resultados = await _viewModel.subirNexxus();
-              if (context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
+              if (mounted) {
+                setState(() => _nubeExpandido = true);
+                ScaffoldMessenger.of(this.context).showSnackBar(
                   SnackBar(
-                    // [MODIFICADO]: Muestra cuántos fueron nuevos, cuántos duplicados se omitieron y cuántos fallaron
                     content: Text(
                       "Nuevos: ${resultados['exitos']} | Omitidos (duplicados): ${resultados['duplicados'] ?? 0} | Fallidos: ${resultados['fallos']}",
                     ),
                     backgroundColor: resultados['fallos'] == 0
                         ? _C.teal600
-                        : _C.rose600, // (o _C.rose500 en inicio_dashboard_screen.dart)
+                        : _C.rose600,
                   ),
                 );
               }

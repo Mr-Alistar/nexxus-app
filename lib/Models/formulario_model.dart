@@ -1,4 +1,4 @@
-//Modelo para la gestión de los campos del formulario que llenan los aspirantes
+// Modelo para la gestión de los campos del formulario que llenan los aspirantes
 class Prospecto {
   int? id;
   String nombre;
@@ -14,7 +14,7 @@ class Prospecto {
   String preparatoria;
   String medioEnterado;
   String? nota;
-  //Campos que NO se exportan en los archivos:
+  // Campos de control interno (no se exportan en los archivos):
   String status;
   int idAsesor;
   String? createdAt;
@@ -22,7 +22,7 @@ class Prospecto {
 
   Prospecto({
     this.id,
-    required this.nombre, //le pongo "required" para campos obligatorios
+    required this.nombre,
     required this.apellido1,
     this.apellido2,
     required this.genero,
@@ -35,15 +35,15 @@ class Prospecto {
     required this.preparatoria,
     required this.medioEnterado,
     this.nota,
-    this.status = 'sin-contacto',//de acuerdo a su base de datos web
+    this.status = 'sin-contacto',
     this.idAsesor = 1,
     this.createdAt,
     this.updatedAt,
   });
 
-  // Metodo para convertir a Map para SQLite
+  // Método para convertir a Map para SQLite
   Map<String, dynamic> toMap() {
-    final map = {
+    final map = <String, dynamic>{
       'nombre': nombre,
       'apellido1': apellido1,
       'apellido2': apellido2,
@@ -65,22 +65,23 @@ class Prospecto {
     if (id != null) map['id'] = id;
     return map;
   }
-//Proceso inverso, como realizar un query a SQLite
+
+  // Proceso inverso: construye un objeto Prospecto desde un registro de SQLite
   factory Prospecto.fromMap(Map<String, dynamic> map) {
     return Prospecto(
       id: map['id'],
-      nombre: map['nombre'],
-      apellido1: map['apellido1'],
+      nombre: map['nombre'] ?? '',
+      apellido1: map['apellido1'] ?? '',
       apellido2: map['apellido2'],
-      genero: map['genero'],
-      email: map['email'],
-      telefono: map['telefono'],
+      genero: map['genero'] ?? '',
+      email: map['email'] ?? '',
+      telefono: map['telefono'] ?? '',
       telReferencia: map['tel_referencia'],
-      tipoZona: map['tipo_zona'],
-      carrera: map['carrera'],
-      modalidad: map['modalidad'],
-      preparatoria: map['preparatoria'],
-      medioEnterado: map['medio_enterado'],
+      tipoZona: map['tipo_zona'] ?? '',
+      carrera: map['carrera'] ?? '',
+      modalidad: map['modalidad'] ?? '',
+      preparatoria: map['preparatoria'] ?? '',
+      medioEnterado: map['medio_enterado'] ?? '',
       status: map['status'] ?? 'sin-contacto',
       idAsesor: map['id_asesor'] ?? 1,
       nota: map['nota'],

@@ -10,7 +10,7 @@ class ApiService {
   // URL base del CRM Nexxus (Laravel).
   // - Emulador Android: usar http://10.0.2.2:8000/api
   // - Dispositivo físico / producción: usar la IP local de tu PC o dominio real
-  static const String _baseUrl = 'http://192.168.1.71:8000/api';
+  static const String _baseUrl = 'http://192.168.1.35:8000/api';
 
   final Dio _dio = Dio(
     BaseOptions(

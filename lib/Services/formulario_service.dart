@@ -1,8 +1,8 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:nexxus/Models/formulario_model.dart';
-// Este archivo de servicio gestiona la base de datos local SQLite de la app.
 
+// Este archivo de servicio gestiona la base de datos local SQLite de la app.
 class FormularioService {
   static final FormularioService instancia = FormularioService._init();
   static Database? _baseDatos;
@@ -15,18 +15,16 @@ class FormularioService {
     return _baseDatos!;
   }
 
-  // Inicializa la conexion con la base de datos.
+  // Inicializa la conexión con la base de datos.
   Future<Database> _inicializarBD(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    // Como la aplicación está en desarrollo, usamos la versión 1
     return await openDatabase(path, version: 1, onCreate: _crearDB);
   }
 
   // Crea las tablas necesarias para el funcionamiento de la aplicación.
   Future _crearDB(Database db, int version) async {
-    // Tabla para prospectos locales
     await db.execute('''
       CREATE TABLE prospectos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,7 +48,6 @@ class FormularioService {
       )
     ''');
 
-    // Tabla para almacenar la información de las carreras y sus imageenes
     await db.execute('''
       CREATE TABLE carreras (
         siglas TEXT PRIMARY KEY,
@@ -64,7 +61,7 @@ class FormularioService {
     ''');
   }
 
-  // METODOS PARA PROSPECTOS*******
+  // ====== MÉTODOS PARA PROSPECTOS ======
 
   // Registra un nuevo prospecto en la base de datos local
   Future<int> insertarProspecto(Prospecto prospecto) async {
@@ -88,6 +85,21 @@ class FormularioService {
       prospecto.toMap(),
       where: 'id = ?',
       whereArgs: [prospecto.id],
+    );
+  }
+
+  // [NUEVO]: Actualiza el status del prospecto a 'sincronizado' cuando se sube al CRM
+  // para que pase automáticamente de la sección "Local (pendientes)" a "En la nube".
+  Future<int> marcarComoSincronizado(int id) async {
+    final db = await instancia.database;
+    return await db.update(
+      'prospectos',
+      {
+        'status': 'sincronizado',
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
     );
   }
 

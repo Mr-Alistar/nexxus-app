@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-// [NUEVO]: Importamos el modelo Prospecto y el ViewModel para leer y subir datos reales de SQLite
 import 'package:nexxus/Models/formulario_model.dart';
 import 'package:nexxus/View_Models/prospectos_locales_view_model.dart';
 
@@ -26,7 +25,6 @@ class _C {
   static const amber500 = Color(0xFFF59E0B);
 }
 
-// [MODIFICADO]: Se cambia de StatelessWidget a StatefulWidget para cargar y escuchar SQLite en tiempo real
 class InicioDashboardScreen extends StatefulWidget {
   const InicioDashboardScreen({super.key});
 
@@ -35,17 +33,14 @@ class InicioDashboardScreen extends StatefulWidget {
 }
 
 class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
-  // [NUEVO]: Instancia del ViewModel que consulta SQLite y sube registros al CRM
   final ProspectosLocalesViewModel _viewModel = ProspectosLocalesViewModel();
 
   @override
   void initState() {
     super.initState();
-    // [NUEVO]: Cargamos los prospectos reales desde SQLite al abrir el Dashboard
     _viewModel.cargarProspectos();
   }
 
-  // [NUEVO]: Genera la fecha actual formateada en español para el encabezado
   String _obtenerFechaActual() {
     const dias = [
       'Lunes',
@@ -76,7 +71,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
     return "$diaSemana, ${ahora.day} de $mes de ${ahora.year}";
   }
 
-  // [NUEVO]: Calcula dinámicamente cuántos aspirantes hay por cada carrera en SQLite
   List<_Carrera> _calcularDemandaCarreras(List<Prospecto> prospectos) {
     final colores = [
       _C.teal700,
@@ -87,7 +81,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
       _C.amber500,
     ];
 
-    // Catálogo base con las 6 carreras oficiales del CRM
     final Map<String, int> conteo = {
       'Ingeniería en Datos e Inteligencia Artificial': 0,
       'Ingeniería Financiera': 0,
@@ -104,7 +97,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
       }
     }
 
-    // Ordenamos de mayor a menor demanda
     final entradas = conteo.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -117,7 +109,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
     });
   }
 
-  // [NUEVO]: Calcula dinámicamente los segmentos del embudo según el status en SQLite
   List<_Segmento> _calcularEmbudo(List<Prospecto> prospectos) {
     int enSeguimiento = 0;
     int enComunicacion = 0;
@@ -126,6 +117,7 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
 
     for (final p in prospectos) {
       switch (p.status.toLowerCase()) {
+        case 'sincronizado':
         case 'en-seguimiento':
           enSeguimiento++;
           break;
@@ -143,9 +135,9 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
     }
 
     return [
-      _Segmento("En seguimiento", enSeguimiento, _C.teal700),
+      _Segmento("En la nube", enSeguimiento, _C.teal700),
       _Segmento("En comunicación", enComunicacion, _C.emerald500),
-      _Segmento("Sin contacto", sinContacto, _C.slate400),
+      _Segmento("Local (pendientes)", sinContacto, _C.slate400),
       _Segmento("Rechazado", rechazado, _C.rose500),
     ];
   }
@@ -156,7 +148,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
       backgroundColor: _C.bg,
       body: SafeArea(
         bottom: false,
-        // [MODIFICADO]: Escuchamos los cambios de _viewModel para redibujar el dashboard automáticamente
         child: ListenableBuilder(
           listenable: _viewModel,
           builder: (context, _) {
@@ -166,29 +157,22 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
 
             final prospectos = _viewModel.prospectos;
             final total = prospectos.length;
-            final pendientes = total; // Todos los registros en SQLite están pendientes de subir al CRM
-            final seguimiento = prospectos
-                .where((p) =>
-            p.status == 'en-seguimiento' ||
-                p.status == 'en-comunicacion')
-                .length;
-            final sinContacto = prospectos
-                .where((p) => p.status == 'sin-contacto' || p.status.isEmpty)
-                .length;
+            final pendientes = _viewModel.prospectosLocales.length;
+            final seguimiento = _viewModel.prospectosEnLaNube.length;
+            final sinContacto = pendientes;
 
             final carreras = _calcularDemandaCarreras(prospectos);
             final embudoDatos = _calcularEmbudo(prospectos);
 
-            // [NUEVO]: Obtenemos los últimos 4 prospectos capturados (del más reciente al más antiguo)
-            final recientes = prospectos.reversed
+            final recientes = prospectos
                 .take(4)
                 .map((p) => _Reciente(
               "${p.nombre} ${p.apellido1} ${p.apellido2 ?? ''}".trim(),
               p.carrera,
+              p.status == 'sincronizado',
             ))
                 .toList();
 
-            // [NUEVO]: RefreshIndicator permite deslizar hacia abajo para actualizar las métricas
             return RefreshIndicator(
               color: _C.teal700,
               onRefresh: _viewModel.cargarProspectos,
@@ -276,7 +260,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
                 style: TextStyle(fontSize: 12, color: _C.slate600),
               ),
               const SizedBox(height: 2),
-              // [MODIFICADO]: Muestra la fecha real del dispositivo
               Text(
                 _obtenerFechaActual(),
                 style: const TextStyle(
@@ -315,7 +298,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
   }
 
   // ===== 2. Banner de sincronización =====
-  // [MODIFICADO]: Recibe el conteo real de pendientes y activa el botón "Subir todo"
   Widget _bannerSync(int pendientes) {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -370,7 +352,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          // [MODIFICADO]: Se envuelve en Material + InkWell para que el botón "Subir todo" funcione
           Material(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -410,7 +391,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
   }
 
   // ===== 3. KPIs =====
-  // [MODIFICADO]: Recibe los contadores reales desde SQLite
   Widget _kpis({
     required int total,
     required int pendientes,
@@ -458,9 +438,9 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
           children: [
             Expanded(
               child: _kpiCard(
-                icono: Icons.contact_phone,
+                icono: Icons.cloud_done_rounded,
                 valor: "$seguimiento",
-                etiqueta: "En seguimiento",
+                etiqueta: "En la nube",
                 colorIcono: _C.teal600,
                 fondoIcono: _C.teal50,
               ),
@@ -468,9 +448,9 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: _kpiCard(
-                icono: Icons.phone_missed,
+                icono: Icons.schedule_send_rounded,
                 valor: "$sinContacto",
-                etiqueta: "Sin contacto",
+                etiqueta: "Local (pendientes)",
                 colorIcono: _C.slate600,
                 fondoIcono: _C.slate100,
               ),
@@ -535,7 +515,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
   }
 
   // ===== 4. Demanda por carrera =====
-  // [MODIFICADO]: Recibe la lista dinámica de carreras y el total real
   Widget _demandaPorCarrera(List<_Carrera> carreras, int total) {
     return _tarjeta(
       titulo: "Demanda por carrera",
@@ -595,11 +574,10 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
   }
 
   // ===== 5. Embudo por estado (donut) =====
-  // [MODIFICADO]: Usa los datos reales y protege contra división entre 0 cuando no hay registros
   Widget _embudo(List<_Segmento> embudoDatos, int total) {
     return _tarjeta(
       titulo: "Embudo de prospección",
-      subtitulo: "Estado de conversión y atención",
+      subtitulo: "Estado de sincronización y atención",
       icono: Icons.filter_alt,
       hijo: Row(
         children: [
@@ -656,7 +634,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
                                 fontSize: 12, color: _C.slate900),
                           ),
                         ),
-                        // [MODIFICADO]: Si total es 0, muestra 0% en lugar de fallar con NaN
                         Text(
                           "${s.valor} (${total == 0 ? 0 : (s.valor / total * 100).round()}%)",
                           style: const TextStyle(
@@ -677,7 +654,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
   }
 
   // ===== 6. Últimos capturados =====
-  // [MODIFICADO]: Muestra los últimos registros reales o un mensaje cuando no hay ninguno
   Widget _ultimosCapturados(List<_Reciente> recientes) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -770,20 +746,24 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
             decoration: BoxDecoration(
-              color: _C.emerald100,
+              color: r.sincronizado ? _C.emerald100 : _C.teal50,
               borderRadius: BorderRadius.circular(999),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.cloud_off, size: 12, color: _C.emerald800),
-                SizedBox(width: 4),
+                Icon(
+                  r.sincronizado ? Icons.cloud_done_rounded : Icons.cloud_off,
+                  size: 12,
+                  color: r.sincronizado ? _C.emerald800 : _C.teal800,
+                ),
+                const SizedBox(width: 4),
                 Text(
-                  "Local",
+                  r.sincronizado ? "En la nube" : "Local",
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: _C.emerald800,
+                    color: r.sincronizado ? _C.emerald800 : _C.teal800,
                   ),
                 ),
               ],
@@ -794,7 +774,6 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
     );
   }
 
-  // [NUEVO]: Modal de confirmación para subir los registros al CRM desde el Dashboard
   void _confirmarSubida(BuildContext context) {
     showDialog(
       context: context,
@@ -817,15 +796,14 @@ class _InicioDashboardScreenState extends State<InicioDashboardScreen> {
               Navigator.pop(dialogContext);
               final resultados = await _viewModel.subirNexxus();
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(this.context).showSnackBar(
                   SnackBar(
-                    // [MODIFICADO]: Muestra cuántos fueron nuevos, cuántos duplicados se omitieron y cuántos fallaron
                     content: Text(
                       "Nuevos: ${resultados['exitos']} | Omitidos (duplicados): ${resultados['duplicados'] ?? 0} | Fallidos: ${resultados['fallos']}",
                     ),
                     backgroundColor: resultados['fallos'] == 0
                         ? _C.teal600
-                        : _C.rose500, // (o _C.rose500 en inicio_dashboard_screen.dart)
+                        : _C.rose500,
                   ),
                 );
               }
@@ -929,7 +907,8 @@ class _Segmento {
 class _Reciente {
   final String nombre;
   final String carrera;
-  const _Reciente(this.nombre, this.carrera);
+  final bool sincronizado;
+  const _Reciente(this.nombre, this.carrera, [this.sincronizado = false]);
 }
 
 // Pintor del donut del embudo de estados.
