@@ -21,7 +21,7 @@ void main() async {
   // Configura el motor de base de datos según la plataforma (web / escritorio / móvil).
   initDatabaseFactory();
   // Siembra 10 registros de demostración la primera vez (solo si la BD está vacía).
-  await FormularioService.instancia.sembrarDatosDemoSiVacio();
+  //await FormularioService.instancia.sembrarDatosDemoSiVacio();
   runApp(const MainApp());
 }
 

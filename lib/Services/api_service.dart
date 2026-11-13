@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:nexxus/Models/formulario_model.dart';
 import 'package:nexxus/Services/auth_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:nexxus/Models/dashboard_model.dart';
 
 class ApiService {
   static final ApiService instancia = ApiService._init();
@@ -50,6 +51,31 @@ class ApiService {
     } catch (e) {
       debugPrint('Error de login: $e');
       return 'Ocurrió un error inesperado al iniciar sesión.';
+    }
+  }
+
+    // Métricas del dashboard según el rol (asesor: solo lo suyo / admin: global).
+  // Devuelve null si no hay sesión o falla la conexión (p. ej. sin internet).
+  Future<DashboardData?> obtenerDashboard() async {
+    final token = AuthSession.instancia.token;
+    if (token == null || token.isEmpty) return null;
+
+    try {
+      final respuesta = await _dio.get(
+        '/dashboard',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final data = respuesta.data;
+      if (data is Map) {
+        return DashboardData.fromJson(Map<String, dynamic>.from(data));
+      }
+      return null;
+    } on DioException catch (e) {
+      debugPrint('Error al obtener dashboard (${e.response?.statusCode}): ${e.response?.data}');
+      return null;
+    } catch (e) {
+      debugPrint('Error al obtener dashboard: $e');
+      return null;
     }
   }
 

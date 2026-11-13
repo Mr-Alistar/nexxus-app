@@ -1,5 +1,5 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:nexxus/Models/dashboard_model.dart';
 import 'package:nexxus/View_Models/dashboard_view_model.dart';
 
 // Paleta del rediseño (teal / esmeralda), consistente con la sección Registrados.
@@ -32,33 +32,67 @@ class InicioDashboardScreen extends StatelessWidget {
     required this.viewModel,
   });
 
+  // Colores que se reutilizan en orden para las barras de cada gráfica.
+  static const List<Color> _colores = [
+    _C.teal600,
+    _C.emerald500,
+    _C.teal700,
+    _C.emerald600,
+    _C.slate400,
+    _C.amber500,
+    _C.teal800,
+  ];
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: viewModel,
       builder: (context, child) {
-        final int total = viewModel.totalProspectos;
-        final int pendientes = viewModel.sinContacto;
-        final int seguimiento = 0;
-        final int sinContacto = viewModel.sinContacto;
+        final datos = viewModel.datos;
+        final total = datos?.totalProspectos ?? 0;
 
         return Scaffold(
           backgroundColor: _C.bg,
           body: SafeArea(
             bottom: false,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              children: [
-                _bienvenida(),
-                const SizedBox(height: 18),
-                _bannerSync(pendientes),
-                const SizedBox(height: 18),
-                _kpis(total, pendientes, seguimiento, sinContacto),
-                const SizedBox(height: 18),
-                _demandaPorCarrera(total),
-                const SizedBox(height: 18),
-                _embudo(total, sinContacto),
-              ],
+            child: RefreshIndicator(
+              onRefresh: viewModel.cargarTodo,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                children: [
+                  _bienvenida(viewModel.nombreUsuario, datos?.rol == 'admin'),
+                  const SizedBox(height: 18),
+                  if (viewModel.errorCrm) ...[
+                    _avisoSinConexion(datos != null),
+                    const SizedBox(height: 18),
+                  ],
+                  _bannerSync(viewModel.porSubir),
+                  const SizedBox(height: 18),
+                  _kpis(datos),
+                  const SizedBox(height: 18),
+                  _graficaConteos(
+                    titulo: "Demanda por carrera",
+                    icono: Icons.bar_chart,
+                    items: datos?.porCarrera ?? const [],
+                    total: total,
+                  ),
+                  const SizedBox(height: 18),
+                  _graficaConteos(
+                    titulo: "Preparatoria de procedencia",
+                    icono: Icons.school,
+                    items: datos?.porPreparatoria ?? const [],
+                    total: total,
+                  ),
+                  const SizedBox(height: 18),
+                  _graficaConteos(
+                    titulo: "Modalidad",
+                    icono: Icons.event_note,
+                    items: datos?.porModalidad ?? const [],
+                    total: total,
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -67,7 +101,8 @@ class InicioDashboardScreen extends StatelessWidget {
   }
 
   // ===== 1. Bienvenida =====
-  Widget _bienvenida() {
+  Widget _bienvenida(String nombre, bool esAdmin) {
+    final inicial = nombre.isNotEmpty ? nombre[0].toUpperCase() : "A";
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -77,12 +112,12 @@ class InicioDashboardScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Flexible(
+                  Flexible(
                     child: Text(
-                      "¡Hola, Asesor!",
+                      "¡Hola, $nombre!",
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: _C.slate900,
@@ -116,9 +151,11 @@ class InicioDashboardScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 3),
-              const Text(
-                "Asesor de Admisiones • UT Chetumal",
-                style: TextStyle(fontSize: 12, color: _C.slate600),
+              Text(
+                esAdmin
+                    ? "Administrador • UT Chetumal"
+                    : "Asesor de Admisiones • UT Chetumal",
+                style: const TextStyle(fontSize: 12, color: _C.slate600),
               ),
             ],
           ),
@@ -136,11 +173,11 @@ class InicioDashboardScreen extends StatelessWidget {
             ),
           ),
           alignment: Alignment.center,
-          child: const Text(
-            "UT",
-            style: TextStyle(
+          child: Text(
+            inicial,
+            style: const TextStyle(
               color: Colors.white,
-              fontSize: 15,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -149,7 +186,33 @@ class InicioDashboardScreen extends StatelessWidget {
     );
   }
 
-  // ===== 2. Banner de sincronización =====
+  // Aviso cuando no se pudieron traer las métricas del CRM (p. ej. sin internet).
+  Widget _avisoSinConexion(bool hayDatosPrevios) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _C.amber500.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.wifi_off, size: 18, color: _C.amber500),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              hayDatosPrevios
+                  ? "Sin conexión. Mostrando la última información cargada."
+                  : "No se pudieron cargar las métricas del CRM. Desliza hacia abajo para reintentar.",
+              style: const TextStyle(fontSize: 12, color: _C.slate900),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===== 2. Banner de sincronización (fichas locales por subir) =====
   Widget _bannerSync(int pendientes) {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -166,50 +229,48 @@ class InicioDashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.cloud_sync, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  pendientes == 1 ? "1 ficha pendiente" : "$pendientes fichas pendientes",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                child: const Icon(Icons.cloud_sync, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "$pendientes fichas pendientes",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      "Capturadas localmente, listas para enviar a Nexxus.",
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ],
+                const SizedBox(height: 2),
+                const Text(
+                  "Capturadas localmente, listas para enviar a Nexxus.",
+                  style: TextStyle(color: Colors.white, fontSize: 12),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ===== 3. KPIs =====
-  Widget _kpis(int total, int pendientes, int seguimiento, int sinContacto) {
+  // ===== 3. KPIs (datos del CRM según el rol) =====
+  Widget _kpis(DashboardData? datos) {
+    final total = datos == null ? "–" : "${datos.totalProspectos}";
+    final semana = datos == null ? "–" : "${datos.solicitudesSemana}";
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -227,7 +288,7 @@ class InicioDashboardScreen extends StatelessWidget {
             Expanded(
               child: _kpiCard(
                 icono: Icons.groups,
-                valor: "$total",
+                valor: total,
                 etiqueta: "Total prospectos",
                 colorIcono: _C.teal700,
                 fondoIcono: _C.teal50,
@@ -236,36 +297,11 @@ class InicioDashboardScreen extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: _kpiCard(
-                icono: Icons.cloud_sync,
-                valor: "$pendientes",
-                etiqueta: "Por subir a CRM",
+                icono: Icons.event_available,
+                valor: semana,
+                etiqueta: "Solicitudes de la semana",
                 colorIcono: _C.emerald800,
                 fondoIcono: _C.emerald50,
-                destacado: true,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _kpiCard(
-                icono: Icons.contact_phone,
-                valor: "$seguimiento",
-                etiqueta: "En seguimiento",
-                colorIcono: _C.teal600,
-                fondoIcono: _C.teal50,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _kpiCard(
-                icono: Icons.phone_missed,
-                valor: "$sinContacto",
-                etiqueta: "Sin contacto",
-                colorIcono: _C.slate600,
-                fondoIcono: _C.slate100,
               ),
             ),
           ],
@@ -327,32 +363,51 @@ class InicioDashboardScreen extends StatelessWidget {
     );
   }
 
-  // ===== 4. Demanda por carrera =====
-  Widget _demandaPorCarrera(int total) {
-    final List<_Carrera> carrerasEjemplo = [
-      _Carrera("Ing. Datos e Inteligencia Artificial", total > 0 ? (total * 0.5).round() : 0, _C.teal600),
-      _Carrera("Ing. Mecatrónica", total > 0 ? (total * 0.3).round() : 0, _C.emerald500),
-      _Carrera("TSU Gastronomía", total > 0 ? (total * 0.2).round() : 0, _C.teal700),
-    ];
+  // ===== 4. Gráfica de barras genérica (carrera / preparatoria / modalidad) =====
+  Widget _graficaConteos({
+    required String titulo,
+    required IconData icono,
+    required List<ConteoItem> items,
+    required int total,
+  }) {
+    final visibles = _topConOtras(items);
 
     return _tarjeta(
-      titulo: "Demanda por carrera",
+      titulo: titulo,
       subtitulo: "Distribución de $total aspirantes registrados",
-      icono: Icons.bar_chart,
-      hijo: Column(
-        children: [
-          for (int i = 0; i < carrerasEjemplo.length; i++)
-            Padding(
-              padding: EdgeInsets.only(bottom: i == carrerasEjemplo.length - 1 ? 0 : 12),
-              child: _barraCarrera(carrerasEjemplo[i], total),
+      icono: icono,
+      hijo: visibles.isEmpty
+          ? const Text(
+              "Sin datos para mostrar.",
+              style: TextStyle(fontSize: 12, color: _C.slate600),
+            )
+          : Column(
+              children: [
+                for (int i = 0; i < visibles.length; i++)
+                  Padding(
+                    padding: EdgeInsets.only(
+                        bottom: i == visibles.length - 1 ? 0 : 12),
+                    child: _barra(
+                      visibles[i],
+                      total,
+                      _colores[i % _colores.length],
+                    ),
+                  ),
+              ],
             ),
-        ],
-      ),
     );
   }
 
-  Widget _barraCarrera(_Carrera c, int total) {
-    final pct = total == 0 ? 0.0 : c.cantidad / total;
+  // Muestra las 6 primeras y agrupa el resto en "Otras".
+  List<ConteoItem> _topConOtras(List<ConteoItem> items, {int max = 6}) {
+    if (items.length <= max) return items;
+    final top = items.take(max).toList();
+    final resto = items.skip(max).fold<int>(0, (suma, e) => suma + e.total);
+    return [...top, ConteoItem(nombre: 'Otras', total: resto)];
+  }
+
+  Widget _barra(ConteoItem item, int total, Color color) {
+    final pct = total == 0 ? 0.0 : item.total / total;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -360,7 +415,7 @@ class InicioDashboardScreen extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                c.nombre,
+                item.nombre,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 12, color: _C.slate900),
@@ -368,7 +423,7 @@ class InicioDashboardScreen extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              "${c.cantidad} (${(pct * 100).round()}%)",
+              "${item.total} (${(pct * 100).round()}%)",
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -384,95 +439,10 @@ class InicioDashboardScreen extends StatelessWidget {
             value: pct,
             minHeight: 9,
             backgroundColor: _C.slate100,
-            valueColor: AlwaysStoppedAnimation<Color>(c.color),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
           ),
         ),
       ],
-    );
-  }
-
-  // ===== 5. Embudo por estado (donut) =====
-  Widget _embudo(int total, int sinContacto) {
-    final List<_Segmento> embudoDatos = [
-      _Segmento("Sin contacto", sinContacto, _C.slate400),
-      _Segmento("En proceso", total - sinContacto, _C.teal700),
-    ];
-
-    return _tarjeta(
-      titulo: "Embudo de prospección",
-      subtitulo: "Estado de conversión y atención",
-      icono: Icons.filter_alt,
-      hijo: Row(
-        children: [
-          SizedBox(
-            width: 110,
-            height: 110,
-            child: CustomPaint(
-              painter: _DonutPainter(embudoDatos, total),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      "$total",
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: _C.slate900,
-                      ),
-                    ),
-                    const Text(
-                      "Aspirantes",
-                      style: TextStyle(fontSize: 10, color: _C.slate600),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 18),
-          Expanded(
-            child: Column(
-              children: [
-                for (final s in embudoDatos)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: s.color,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            s.etiqueta,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 12, color: _C.slate900),
-                          ),
-                        ),
-                        Text(
-                          "${s.valor} (${total == 0 ? 0 : (s.valor / total * 100).round()}%)",
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: _C.slate600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -539,65 +509,4 @@ class InicioDashboardScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-class _Carrera {
-  final String nombre;
-  final int cantidad;
-  final Color color;
-  const _Carrera(this.nombre, this.cantidad, this.color);
-}
-
-class _Segmento {
-  final String etiqueta;
-  final int valor;
-  final Color color;
-  const _Segmento(this.etiqueta, this.valor, this.color);
-}
-
-// Pintor del donut del embudo de estados.
-class _DonutPainter extends CustomPainter {
-  final List<_Segmento> segmentos;
-  final int total;
-  _DonutPainter(this.segmentos, this.total);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final centro = Offset(size.width / 2, size.height / 2);
-    final radio = math.min(size.width, size.height) / 2;
-    final grosor = radio * 0.30;
-    final rect = Rect.fromCircle(center: centro, radius: radio - grosor / 2);
-
-    final fondo = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = grosor
-      ..color = const Color(0xFFEDF2F1);
-    canvas.drawCircle(centro, radio - grosor / 2, fondo);
-
-    if (total == 0) return;
-
-    double inicio = -math.pi / 2;
-    const espacio = 0.03;
-    for (final s in segmentos) {
-      if (s.valor == 0) continue;
-      final barrido = (s.valor / total) * 2 * math.pi;
-      final pintura = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = grosor
-        ..strokeCap = StrokeCap.round
-        ..color = s.color;
-      canvas.drawArc(
-        rect,
-        inicio + espacio / 2,
-        math.max(0, barrido - espacio),
-        false,
-        pintura,
-      );
-      inicio += barrido;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DonutPainter old) =>
-      old.segmentos != segmentos || old.total != total;
 }
