@@ -1,0 +1,1656 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Campus UTChetumal 3D — Maqueta Arquitectónica</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html {
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          background: radial-gradient(circle at 50% 42%, #ffffff 0%, #eef3ef 65%, #dfe8e2 100%);
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          user-select: none;
+          -webkit-user-select: none;
+          transition: background 0.7s ease;
+        }
+        body.atardecer {
+          background: radial-gradient(circle at 50% 35%, #f7d6b5 0%, #d98a6c 55%, #47526e 100%);
+        }
+        body.noche {
+          background: radial-gradient(circle at 50% 30%, #1d2f45 0%, #0f1926 60%, #070c14 100%);
+        }
+        #canvas-container {
+          width: 100%;
+          height: 100%;
+          position: relative;
+          cursor: grab;
+        }
+        #canvas-container:active {
+          cursor: grabbing;
+        }
+
+        /* Pines y etiquetas estilo mapa_3.png */
+        .etiqueta-edificio {
+          position: absolute;
+          transform: translate(-50%, -100%);
+          pointer-events: auto;
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), filter 0.2s ease;
+          z-index: 10;
+        }
+        .etiqueta-edificio:hover {
+          transform: translate(-50%, -112%) scale(1.08);
+          z-index: 18;
+        }
+        .pin-gota {
+          width: 28px;
+          height: 28px;
+          border-radius: 50% 50% 50% 0;
+          transform: rotate(-45deg);
+          background: linear-gradient(145deg, #5d4b3e 0%, #3b2f26 100%);
+          border: 2px solid #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.52);
+          margin-bottom: 6px;
+          transition: background 0.25s ease, transform 0.25s ease;
+        }
+        .etiqueta-edificio.activo .pin-gota {
+          background: linear-gradient(145deg, #2e7d32 0%, #1b5e20 100%);
+          transform: rotate(-45deg) scale(1.16);
+        }
+        .pin-gota::after {
+          content: "";
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #ffffff;
+          transform: rotate(45deg);
+        }
+        .etiqueta-texto {
+          color: #ffffff;
+          font-weight: 800;
+          font-size: 12px;
+          line-height: 1.12;
+          text-align: center;
+          text-shadow:
+            -1.3px -1.3px 0 #181f17,
+             1.3px -1.3px 0 #181f17,
+            -1.3px  1.3px 0 #181f17,
+             1.3px  1.3px 0 #181f17,
+             0px    2px   6px rgba(0, 0, 0, 0.9);
+          white-space: pre-line;
+          letter-spacing: 0.15px;
+        }
+
+        /* Controles flotantes minimalistas */
+        #controles-flotantes {
+          position: absolute;
+          right: 16px;
+          bottom: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          z-index: 25;
+        }
+        .btn-3d {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          border: 1px solid rgba(27, 94, 32, 0.16);
+          background: rgba(255, 255, 255, 0.94);
+          backdrop-filter: blur(8px);
+          color: #1B5E20;
+          font-weight: 700;
+          font-size: 15px;
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform 0.16s ease, background 0.2s ease, box-shadow 0.2s ease;
+        }
+        .btn-3d:hover {
+          background: #ffffff;
+          transform: translateY(-2px);
+          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+        }
+        .btn-3d:active {
+          transform: scale(0.93);
+        }
+
+        /* Tarjeta informativa elegante */
+        #panel-info {
+          position: absolute;
+          left: 16px;
+          bottom: 16px;
+          max-width: 350px;
+          width: calc(100% - 84px);
+          background: rgba(255, 255, 255, 0.96);
+          backdrop-filter: blur(12px);
+          border-radius: 20px;
+          padding: 18px 20px;
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(27, 94, 32, 0.16);
+          transform: translateY(135%);
+          opacity: 0;
+          pointer-events: none;
+          transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+          z-index: 30;
+        }
+        #panel-info.visible {
+          transform: translateY(0);
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .panel-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 10px;
+          margin-bottom: 6px;
+        }
+        .panel-subtitulo {
+          font-size: 10.5px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.6px;
+          color: #4c7c50;
+          margin-bottom: 2px;
+        }
+        .panel-titulo {
+          font-size: 17px;
+          font-weight: 800;
+          color: #1B5E20;
+          line-height: 1.2;
+        }
+        .btn-cerrar {
+          background: #eef3ef;
+          border: none;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          color: #2e3b30;
+          font-weight: bold;
+          font-size: 13px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          transition: background 0.2s ease;
+        }
+        .btn-cerrar:hover {
+          background: #dce6de;
+        }
+        .panel-desc {
+          font-size: 12.5px;
+          color: #3a453c;
+          line-height: 1.45;
+          margin-bottom: 10px;
+        }
+        .panel-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .tag-carrera {
+          background: linear-gradient(135deg, #1B5E20 0%, #2E7D32 100%);
+          color: #ffffff;
+          font-size: 11px;
+          font-weight: 700;
+          padding: 4px 10px;
+          border-radius: 8px;
+          box-shadow: 0 2px 6px rgba(27, 94, 32, 0.25);
+        }
+
+        /* Distintivo superior */
+        #badge-titulo {
+          position: absolute;
+          top: 14px;
+          left: 16px;
+          background: rgba(255, 255, 255, 0.92);
+          backdrop-filter: blur(8px);
+          padding: 8px 14px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 700;
+          color: #1B5E20;
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+          border: 1px solid rgba(27, 94, 32, 0.12);
+          z-index: 20;
+          pointer-events: none;
+          display: flex;
+          align-items: center;
+          gap: 7px;
+        }
+        .dot-live {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #2e7d32;
+          box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.2);
+        }
+    </style>
+</head>
+<body>
+<div id="canvas-container"></div>
+
+<div id="badge-titulo">
+    <span class="dot-live"></span>
+    <span>UTChetumal • Maqueta Arquitectónica 3D</span>
+</div>
+
+<!-- Panel de información de edificio -->
+<div id="panel-info">
+    <div class="panel-header">
+        <div>
+            <div class="panel-subtitulo" id="info-subtitulo">Instalación Universitaria</div>
+            <div class="panel-titulo" id="info-titulo">Edificio</div>
+        </div>
+        <button class="btn-cerrar" id="btn-cerrar-panel" title="Cerrar">✕</button>
+    </div>
+    <p class="panel-desc" id="info-desc"></p>
+    <div class="panel-tags" id="info-tags"></div>
+</div>
+
+<!-- Controles flotantes -->
+<div id="controles-flotantes">
+    <button class="btn-3d" id="btn-play" title="Pausar / Reanudar rotación">❚❚</button>
+    <button class="btn-3d" id="btn-luz" title="Alternar Día / Hora Dorada / Noche">☀️</button>
+    <button class="btn-3d" id="btn-zoom-in" title="Acercar">+</button>
+    <button class="btn-3d" id="btn-zoom-out" title="Alejar">−</button>
+    <button class="btn-3d" id="btn-reset" title="Vista Aérea Inicial">⟲</button>
+</div>
+
+<!-- Three.js r128 + OrbitControls -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+    window.onload = function () {
+      const container = document.getElementById('canvas-container');
+      const panelInfo = document.getElementById('panel-info');
+      const infoSubtitulo = document.getElementById('info-subtitulo');
+      const infoTitulo = document.getElementById('info-titulo');
+      const infoDesc = document.getElementById('info-desc');
+      const infoTags = document.getElementById('info-tags');
+
+      const DATOS_EDIFICIOS = {
+        principal: {
+          subtitulo: 'Rectoría y Aulas Centrales',
+          nombre: 'Edificio Principal',
+          desc: 'Núcleo académico y administrativo de la UTChetumal. Alberga rectoría, servicios escolares, caja y aulas climatizadas.',
+          carreras: ['DIA', 'IF', 'TIID', 'NM']
+        },
+        biblioteca: {
+          subtitulo: 'Centro de Información',
+          nombre: 'Biblioteca Central',
+          desc: 'Acervo bibliográfico físico y digital, salas de lectura silenciosa, sala de cómputo y cubículos de estudio grupal.',
+          carreras: ['Uso General']
+        },
+        gastronomia: {
+          subtitulo: 'Laboratorios Culinarios',
+          nombre: 'Edificio de Gastronomía',
+          desc: 'Cocinas industriales equipadas, talleres de repostería, panadería, cava y laboratorio de cata.',
+          carreras: ['Gastronomía (G)']
+        },
+        mecatronica: {
+          subtitulo: 'Ingeniería y Robótica',
+          nombre: 'Taller de Mecatrónica',
+          desc: 'Laboratorios de automatización industrial, neumática, PLC, electrónica aplicada y brazos robóticos.',
+          carreras: ['Mecatrónica (IM)']
+        },
+        comedor: {
+          subtitulo: 'Servicios Estudiantiles',
+          nombre: 'Comedor Universitario',
+          desc: 'Área de convivencia, cafetería climatizada y terraza al aire libre para la comunidad universitaria.',
+          carreras: ['Servicios Campus']
+        }
+      };
+
+      // =========================================================================
+      // 7. BOSQUE DENSO TROPICAL, PALMERAS, FLAMBOYANES Y BANDADA DE AVES
+      // =========================================================================
+      const tonosFollaje = [0x355e20, 0x46762b, 0x568b36, 0x2b4e19, 0x3f6c26, 0x62963e];
+      const matsFollaje = tonosFollaje.map(c => new THREE.MeshStandardMaterial({
+        color: c,
+        roughness: 0.84,
+        metalness: 0.02,
+        flatShading: true
+      }));
+      const matFlorNaranja = new THREE.MeshStandardMaterial({
+        color: 0xd95326,
+        roughness: 0.78,
+        flatShading: true
+      });
+      const matTronco = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 0.94 });
+      const matTroncoPalma = new THREE.MeshStandardMaterial({ color: 0x796556, roughness: 0.9 });
+      const matPencaPalma = new THREE.MeshStandardMaterial({
+        color: 0x3e7526,
+        roughness: 0.72,
+        side: THREE.DoubleSide
+      });
+
+      // Geometría orgánica de racimo de follaje con vértices perturbados
+      function crearGeometriaRacimo(detalle = 1, deformacion = 0.22) {
+        const geo = new THREE.IcosahedronGeometry(1, detalle);
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const vx = pos.getX(i);
+          const vy = pos.getY(i);
+          const vz = pos.getZ(i);
+          const ruido = 1 + Math.sin(vx * 4.7 + vy * 3.1) * deformacion + Math.cos(vz * 5.3 - vy * 2.4) * (deformacion * 0.7);
+          pos.setXYZ(i, vx * ruido, vy * (ruido * 0.88), vz * ruido);
+        }
+        geo.computeVertexNormals();
+        return geo;
+      }
+
+      const geoRacimoA = crearGeometriaRacimo(1, 0.24);
+      const geoRacimoB = crearGeometriaRacimo(2, 0.18);
+      const geoTroncoBase = new THREE.CylinderGeometry(0.22, 0.46, 2.3, 7);
+      const geoRama = new THREE.CylinderGeometry(0.11, 0.20, 1.55, 6);
+      const arbolesAnimados = [];
+
+      function plantarArbol(x, z, escala = 1.0, idx = 0, esFlamboyan = false) {
+        const g = new THREE.Group();
+
+        // Tronco principal con raíces acampanadas y dos ramas bifurcadas
+        const tronco = new THREE.Mesh(geoTroncoBase, matTronco);
+        tronco.position.y = 1.15 * escala;
+        tronco.scale.set(escala, escala, escala);
+        tronco.castShadow = true;
+
+        const rama1 = new THREE.Mesh(geoRama, matTronco);
+        rama1.position.set(-0.38 * escala, 2.15 * escala, 0.18 * escala);
+        rama1.rotation.set(0.15, 0, 0.42);
+        rama1.scale.setScalar(escala);
+
+        const rama2 = new THREE.Mesh(geoRama, matTronco);
+        rama2.position.set(0.42 * escala, 2.1 * escala, -0.22 * escala);
+        rama2.rotation.set(-0.18, 0.3, -0.45);
+        rama2.scale.setScalar(escala);
+
+        g.add(tronco, rama1, rama2);
+
+        // Grupo de copa multicapa (5 racimos esculpidos) para balanceo independiente
+        const copaGrupo = new THREE.Group();
+        copaGrupo.position.y = 2.65 * escala;
+
+        const matBase = esFlamboyan ? matFlorNaranja : matsFollaje[idx % matsFollaje.length];
+        const matClaro = esFlamboyan ? matFlorNaranja : matsFollaje[(idx + 2) % matsFollaje.length];
+        const matOscuro = matsFollaje[(idx + 3) % matsFollaje.length];
+
+        const subRacimos = [
+          { pos: [0, 0.55, 0], sc: [2.45, 1.75, 2.45], geo: geoRacimoB, mat: matBase, rot: 0.2 },
+          { pos: [-1.15, 0.12, 0.65], sc: [1.85, 1.45, 1.75], geo: geoRacimoA, mat: matOscuro, rot: 1.1 },
+          { pos: [1.18, 0.18, -0.55], sc: [1.9, 1.4, 1.8], geo: geoRacimoA, mat: matClaro, rot: 2.3 },
+          { pos: [0.35, 0.08, 1.15], sc: [1.75, 1.35, 1.7], geo: geoRacimoA, mat: matBase, rot: 3.4 },
+          { pos: [-0.45, 0.95, -0.35], sc: [1.65, 1.25, 1.65], geo: geoRacimoB, mat: matClaro, rot: 4.2 }
+        ];
+
+        subRacimos.forEach(r => {
+          const m = new THREE.Mesh(r.geo, r.mat);
+          m.position.set(r.pos[0] * escala, r.pos[1] * escala, r.pos[2] * escala);
+          m.scale.set(r.sc[0] * escala, r.sc[1] * escala, r.sc[2] * escala);
+          m.rotation.set(r.rot * 0.3, r.rot, r.rot * 0.2);
+          m.castShadow = true;
+          m.receiveShadow = true;
+          copaGrupo.add(m);
+        });
+
+        g.add(copaGrupo);
+        g.position.set(x, 0, z);
+        g.rotation.y = (idx * 1.37) % (Math.PI * 2);
+        g.userData = { fase: idx * 0.45, copa: copaGrupo };
+        scene.add(g);
+        arbolesAnimados.push(g);
+      }
+
+      // Palmera real caribeña (tronco anillado esbelto + corona de pencas arqueadas)
+      function plantarPalmera(x, z, altura = 5.4, idx = 0) {
+        const g = new THREE.Group();
+        const fuste = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.14, 0.26, altura, 8),
+          matTroncoPalma
+        );
+        fuste.position.y = altura / 2;
+        fuste.rotation.z = Math.sin(idx) * 0.05;
+        fuste.castShadow = true;
+        g.add(fuste);
+
+        const corona = new THREE.Group();
+        corona.position.set(Math.sin(idx) * 0.14, altura, 0);
+
+        const numPencas = 9;
+        for (let p = 0; p < numPencas; p++) {
+          const ang = (p / numPencas) * Math.PI * 2;
+          const penca = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.6, 4), matPencaPalma);
+          penca.scale.set(1.0, 1.0, 0.14);
+          penca.position.set(Math.cos(ang) * 1.05, -0.15, Math.sin(ang) * 1.05);
+          penca.rotation.y = -ang + Math.PI / 2;
+          penca.rotation.x = 1.18 + (p % 2) * 0.16;
+          penca.castShadow = true;
+          corona.add(penca);
+        }
+
+        g.add(corona);
+        g.position.set(x, 0, z);
+        g.userData = { fase: idx * 0.6, copa: corona };
+        scene.add(g);
+        arbolesAnimados.push(g);
+      }
+
+      // =========================================================================
+      // 1. GENERADOR DE TEXTURAS PBR PROCEDURALES (TEJAS, CANTERA, ESTUCO, CÉSPED)
+      // =========================================================================
+      function crearTexturasTeja() {
+        const size = 512;
+        const cDiff = document.createElement('canvas');
+        const cBump = document.createElement('canvas');
+        const cRough = document.createElement('canvas');
+        cDiff.width = cBump.width = cRough.width = size;
+        cDiff.height = cBump.height = cRough.height = size;
+        const ctxD = cDiff.getContext('2d');
+        const ctxB = cBump.getContext('2d');
+        const ctxR = cRough.getContext('2d');
+
+        ctxD.fillStyle = '#a64b2a';
+        ctxD.fillRect(0, 0, size, size);
+        ctxB.fillStyle = '#404040';
+        ctxB.fillRect(0, 0, size, size);
+        ctxR.fillStyle = '#b5b5b5';
+        ctxR.fillRect(0, 0, size, size);
+
+        const filas = 16;
+        const cols = 16;
+        const rowH = size / filas;
+        const colW = size / cols;
+
+        for (let r = 0; r < filas; r++) {
+          const y = r * rowH;
+          const offset = (r % 2) * (colW * 0.5);
+          for (let c = -1; c <= cols; c++) {
+            const x = c * colW + offset;
+            const tono = Math.floor(Math.sin(r * 7.3 + c * 13.1) * 14);
+            const rCol = Math.min(255, Math.max(0, 188 + tono));
+            const gCol = Math.min(255, Math.max(0, 88 + Math.floor(tono * 0.6)));
+            const bCol = Math.min(255, Math.max(0, 50 + Math.floor(tono * 0.4)));
+
+            const gradD = ctxD.createLinearGradient(x, y, x + colW, y);
+            gradD.addColorStop(0, `rgb(${rCol - 35},${gCol - 20},${bCol - 12})`);
+            gradD.addColorStop(0.45, `rgb(${rCol + 18},${gCol + 12},${bCol + 8})`);
+            gradD.addColorStop(1, `rgb(${rCol - 42},${gCol - 25},${bCol - 15})`);
+
+            ctxD.fillStyle = gradD;
+            ctxD.beginPath();
+            ctxD.arc(x + colW / 2, y + rowH * 0.72, colW * 0.48, 0, Math.PI, false);
+            ctxD.lineTo(x + colW * 0.02, y);
+            ctxD.lineTo(x + colW * 0.98, y);
+            ctxD.closePath();
+            ctxD.fill();
+
+            ctxD.fillStyle = 'rgba(30, 12, 5, 0.35)';
+            ctxD.fillRect(x, y + rowH - 3, colW, 3);
+
+            const gradB = ctxB.createLinearGradient(x, y, x + colW, y);
+            gradB.addColorStop(0, '#303030');
+            gradB.addColorStop(0.5, '#f0f0f0');
+            gradB.addColorStop(1, '#252525');
+            ctxB.fillStyle = gradB;
+            ctxB.fillRect(x + 1, y + 1, colW - 2, rowH - 2);
+          }
+        }
+
+        const map = new THREE.CanvasTexture(cDiff);
+        const bumpMap = new THREE.CanvasTexture(cBump);
+        const roughnessMap = new THREE.CanvasTexture(cRough);
+        [map, bumpMap, roughnessMap].forEach(t => {
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.anisotropy = 8;
+        });
+        return { map, bumpMap, roughnessMap };
+      }
+
+      function crearTexturaEstuco() {
+        const size = 256;
+        const cDiff = document.createElement('canvas');
+        const cBump = document.createElement('canvas');
+        cDiff.width = cBump.width = size;
+        cDiff.height = cBump.height = size;
+        const ctxD = cDiff.getContext('2d');
+        const ctxB = cBump.getContext('2d');
+
+        ctxD.fillStyle = '#efe8dc';
+        ctxD.fillRect(0, 0, size, size);
+        ctxB.fillStyle = '#808080';
+        ctxB.fillRect(0, 0, size, size);
+
+        for (let i = 0; i < 6000; i++) {
+          const x = Math.random() * size;
+          const y = Math.random() * size;
+          const v = Math.random();
+          ctxD.fillStyle = v > 0.5 ? 'rgba(255,255,255,0.14)' : 'rgba(165,152,135,0.14)';
+          ctxD.fillRect(x, y, 2, 2);
+          const b = Math.floor(105 + v * 50);
+          ctxB.fillStyle = `rgb(${b},${b},${b})`;
+          ctxB.fillRect(x, y, 2, 2);
+        }
+
+        const map = new THREE.CanvasTexture(cDiff);
+        const bumpMap = new THREE.CanvasTexture(cBump);
+        [map, bumpMap].forEach(t => {
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(3, 2);
+        });
+        return { map, bumpMap };
+      }
+
+      function crearTexturaCantera() {
+        const size = 256;
+        const cDiff = document.createElement('canvas');
+        const cBump = document.createElement('canvas');
+        cDiff.width = cBump.width = size;
+        cDiff.height = cBump.height = size;
+        const ctxD = cDiff.getContext('2d');
+        const ctxB = cBump.getContext('2d');
+
+        ctxD.fillStyle = '#7e7a70';
+        ctxD.fillRect(0, 0, size, size);
+        ctxB.fillStyle = '#303030';
+        ctxB.fillRect(0, 0, size, size);
+
+        const filas = 6;
+        const h = size / filas;
+        for (let r = 0; r < filas; r++) {
+          let x = (r % 2) * -28;
+          while (x < size) {
+            const w = 36 + ((r * 19 + Math.floor(x)) % 26);
+            const shade = 122 + ((r * 13 + Math.floor(x)) % 28);
+            ctxD.fillStyle = `rgb(${shade + 6},${shade + 2},${shade - 6})`;
+            ctxD.fillRect(x + 2, r * h + 2, w - 4, h - 4);
+            ctxB.fillStyle = '#c8c8c8';
+            ctxB.fillRect(x + 2, r * h + 2, w - 4, h - 4);
+            x += w;
+          }
+        }
+
+        const map = new THREE.CanvasTexture(cDiff);
+        const bumpMap = new THREE.CanvasTexture(cBump);
+        [map, bumpMap].forEach(t => {
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(4, 1);
+        });
+        return { map, bumpMap };
+      }
+
+      function crearTexturasCesped() {
+        const size = 512;
+        const cDiff = document.createElement('canvas');
+        const cBump = document.createElement('canvas');
+        cDiff.width = cBump.width = size;
+        cDiff.height = cBump.height = size;
+        const ctxD = cDiff.getContext('2d');
+        const ctxB = cBump.getContext('2d');
+
+        ctxD.fillStyle = '#567f3c';
+        ctxD.fillRect(0, 0, size, size);
+        ctxB.fillStyle = '#707070';
+        ctxB.fillRect(0, 0, size, size);
+
+        for (let i = 0; i < 16000; i++) {
+          const x = Math.random() * size;
+          const y = Math.random() * size;
+          const r = 1 + Math.random() * 2.5;
+          const v = Math.random();
+          ctxD.fillStyle = v > 0.65 ? 'rgba(118, 168, 76, 0.24)' : (v < 0.35 ? 'rgba(54, 86, 33, 0.26)' : 'rgba(82, 124, 54, 0.2)');
+          ctxD.fillRect(x, y, r, r);
+
+          const bVal = Math.floor(90 + v * 130);
+          ctxB.fillStyle = `rgb(${bVal},${bVal},${bVal})`;
+          ctxB.fillRect(x, y, 2, 2);
+        }
+
+        const map = new THREE.CanvasTexture(cDiff);
+        const bumpMap = new THREE.CanvasTexture(cBump);
+        [map, bumpMap].forEach(t => {
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(10, 10);
+        });
+        return { map, bumpMap };
+      }
+
+      function crearTexturasAsfalto() {
+        const size = 256;
+        const cDiff = document.createElement('canvas');
+        const cBump = document.createElement('canvas');
+        cDiff.width = cBump.width = size;
+        cDiff.height = cBump.height = size;
+        const ctxD = cDiff.getContext('2d');
+        const ctxB = cBump.getContext('2d');
+
+        ctxD.fillStyle = '#686e76';
+        ctxD.fillRect(0, 0, size, size);
+        ctxB.fillStyle = '#808080';
+        ctxB.fillRect(0, 0, size, size);
+
+        for (let i = 0; i < 9000; i++) {
+          const x = Math.random() * size;
+          const y = Math.random() * size;
+          const g = Math.floor(88 + Math.random() * 38);
+          ctxD.fillStyle = `rgb(${g},${g + 3},${g + 8})`;
+          ctxD.fillRect(x, y, 1.5, 1.5);
+
+          const b = Math.floor(60 + Math.random() * 140);
+          ctxB.fillStyle = `rgb(${b},${b},${b})`;
+          ctxB.fillRect(x, y, 1.5, 1.5);
+        }
+
+        const map = new THREE.CanvasTexture(cDiff);
+        const bumpMap = new THREE.CanvasTexture(cBump);
+        [map, bumpMap].forEach(t => {
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(14, 14);
+        });
+        return { map, bumpMap };
+      }
+
+      function crearTexturaCancha() {
+        const w = 512, h = 768;
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+
+        // Franjas de corte horizontal fieles a mapa_3.png
+        const franjas = 12;
+        const fh = h / franjas;
+        for (let i = 0; i < franjas; i++) {
+          ctx.fillStyle = i % 2 === 0 ? '#689c44' : '#5b8d39';
+          ctx.fillRect(0, i * fh, w, fh);
+        }
+
+        // Textura fina de césped
+        for (let i = 0; i < 8000; i++) {
+          ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
+          ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+        }
+
+        // Líneas blancas FIFA de alta nitidez
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.94)';
+        ctx.lineWidth = 4.5;
+        const pad = 26;
+        const pw = w - pad * 2;
+        const ph = h - pad * 2;
+
+        ctx.strokeRect(pad, pad, pw, ph);
+        ctx.beginPath();
+        ctx.moveTo(pad, h / 2);
+        ctx.lineTo(w - pad, h / 2);
+        ctx.stroke();
+
+        // Círculo y punto central
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2, 56, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Áreas grandes y chicas
+        ctx.strokeRect(w / 2 - 122, pad, 244, 94);
+        ctx.strokeRect(w / 2 - 56, pad, 112, 34);
+        ctx.strokeRect(w / 2 - 122, h - pad - 94, 244, 94);
+        ctx.strokeRect(w / 2 - 56, h - pad - 34, 112, 34);
+
+        // Puntos penales y medias lunas
+        ctx.beginPath();
+        ctx.arc(w / 2, pad + 64, 4.5, 0, Math.PI * 2);
+        ctx.arc(w / 2, h - pad - 64, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(w / 2, pad + 64, 44, 0.21 * Math.PI, 0.79 * Math.PI);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(w / 2, h - pad - 64, 44, 1.21 * Math.PI, 1.79 * Math.PI);
+        ctx.stroke();
+
+        // Tiros de esquina
+        const cr = 14;
+        [[pad, pad, 0, 0.5 * Math.PI], [w - pad, pad, 0.5 * Math.PI, Math.PI],
+         [pad, h - pad, 1.5 * Math.PI, 2 * Math.PI], [w - pad, h - pad, Math.PI, 1.5 * Math.PI]]
+          .forEach(([cx, cy, a1, a2]) => {
+            ctx.beginPath();
+            ctx.arc(cx, cy, cr, a1, a2);
+            ctx.stroke();
+          });
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.anisotropy = 8;
+        return tex;
+      }
+
+      // =========================================================================
+      // 2. ESCENA, CÁMARA E ILUMINACIÓN DE ESTUDIO ARQUITECTÓNICO
+      // =========================================================================
+      const scene = new THREE.Scene();
+
+      const camera = new THREE.PerspectiveCamera(34, container.clientWidth / container.clientHeight, 0.5, 550);
+      // Ángulo aéreo casi cenital-isométrico idéntico a mapa_3.png
+      const defaultCamPos = new THREE.Vector3(-4, 118, 66);
+      const defaultTarget = new THREE.Vector3(2, 0, 3);
+      camera.position.copy(defaultCamPos);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+      container.appendChild(renderer.domElement);
+
+      // Entorno procedural PMREM para reflejos reales en cristales y carrocerías
+      const pmremGenerator = new THREE.PMREMGenerator(renderer);
+      const envScene = new THREE.Scene();
+      const skyGeo = new THREE.SphereGeometry(50, 24, 16);
+      const skyMat = new THREE.MeshBasicMaterial({ color: 0xdceef8, side: THREE.BackSide });
+      const groundDisc = new THREE.Mesh(
+        new THREE.CircleGeometry(48, 24),
+        new THREE.MeshBasicMaterial({ color: 0x4b7333 })
+      );
+      groundDisc.rotation.x = -Math.PI / 2;
+      groundDisc.position.y = -5;
+      envScene.add(new THREE.Mesh(skyGeo, skyMat), groundDisc);
+      scene.environment = pmremGenerator.fromScene(envScene).texture;
+      pmremGenerator.dispose();
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.copy(defaultTarget);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.06;
+      controls.maxPolarAngle = Math.PI / 2.22;
+      controls.minPolarAngle = 0.12;
+      controls.minDistance = 28;
+      controls.maxDistance = 175;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 0.45;
+
+      // Iluminación triple: Cielo/Tierra + Sol principal + Luz de relleno suave
+      const hemiLight = new THREE.HemisphereLight(0xf6fbff, 0x3b592c, 0.72);
+      hemiLight.position.set(0, 100, 0);
+      scene.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xfff9ed, 1.05);
+      dirLight.position.set(-48, 86, 38);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 15;
+      dirLight.shadow.camera.far = 240;
+      const dShadow = 76;
+      dirLight.shadow.camera.left = -dShadow;
+      dirLight.shadow.camera.right = dShadow;
+      dirLight.shadow.camera.top = dShadow;
+      dirLight.shadow.camera.bottom = -dShadow;
+      dirLight.shadow.bias = -0.0004;
+      scene.add(dirLight);
+
+      const fillLight = new THREE.DirectionalLight(0xdbeeff, 0.28);
+      fillLight.position.set(55, 50, -45);
+      scene.add(fillLight);
+
+      // Instanciar materiales PBR
+      const { map: mapTeja, bumpMap: bumpTeja, roughnessMap: roughTeja } = crearTexturasTeja();
+      const { map: mapEstuco, bumpMap: bumpEstuco } = crearTexturaEstuco();
+      const { map: mapCantera, bumpMap: bumpCantera } = crearTexturaCantera();
+      const { map: mapCesped, bumpMap: bumpCesped } = crearTexturasCesped();
+      const { map: mapAsfalto, bumpMap: bumpAsfalto } = crearTexturasAsfalto();
+      const mapCancha = crearTexturaCancha();
+
+      const matCesped = new THREE.MeshStandardMaterial({
+        map: mapCesped,
+        bumpMap: bumpCesped,
+        bumpScale: 0.08,
+        roughness: 0.92
+      });
+      const matTierra = new THREE.MeshStandardMaterial({ color: 0x384a30, roughness: 1.0 });
+      const matAsfalto = new THREE.MeshStandardMaterial({
+        map: mapAsfalto,
+        bumpMap: bumpAsfalto,
+        bumpScale: 0.04,
+        roughness: 0.86
+      });
+      const matConcreto = new THREE.MeshStandardMaterial({ color: 0xe6e3db, roughness: 0.75 });
+      const matSofito = new THREE.MeshStandardMaterial({ color: 0xd8c8b4, roughness: 0.8 });
+      const matPatioClaro = new THREE.MeshStandardMaterial({ color: 0xd9d7cf, roughness: 0.82 });
+      const matMuro = new THREE.MeshStandardMaterial({
+        map: mapEstuco,
+        bumpMap: bumpEstuco,
+        bumpScale: 0.02,
+        color: 0xf2ece1,
+        roughness: 0.68
+      });
+      const matPilastra = new THREE.MeshStandardMaterial({ color: 0xe2dbd0, roughness: 0.62 });
+      const matZocalo = new THREE.MeshStandardMaterial({
+        map: mapCantera,
+        bumpMap: bumpCantera,
+        bumpScale: 0.08,
+        roughness: 0.85
+      });
+      const matTeja = new THREE.MeshStandardMaterial({
+        map: mapTeja,
+        bumpMap: bumpTeja,
+        bumpScale: 0.24,
+        roughnessMap: roughTeja,
+        roughness: 0.68,
+        metalness: 0.04
+      });
+      const matCumbrera = new THREE.MeshStandardMaterial({ color: 0x8c3c1e, roughness: 0.62 });
+      const matVentana = new THREE.MeshStandardMaterial({
+        color: 0x1e3842,
+        emissive: 0x000000,
+        emissiveIntensity: 0.0,
+        roughness: 0.12,
+        metalness: 0.72,
+        envMapIntensity: 1.25
+      });
+      const matMarcoAluminio = new THREE.MeshStandardMaterial({ color: 0x373c40, roughness: 0.35, metalness: 0.6 });
+      const matBlanco = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      const matAmarillo = new THREE.MeshBasicMaterial({ color: 0xf4c430 });
+      const matVerdeInst = new THREE.MeshStandardMaterial({ color: 0x1B5E20, roughness: 0.48 });
+      const matMetalInox = new THREE.MeshStandardMaterial({ color: 0xcfd6dc, roughness: 0.28, metalness: 0.82 });
+
+      // Plataforma de terreno base con zócalo arquitectónico elegante
+      const base = new THREE.Mesh(new THREE.BoxGeometry(126, 2.8, 126), [
+        matTierra, matTierra, matCesped, matTierra, matTierra, matTierra
+      ]);
+      base.position.y = -1.4;
+      base.receiveShadow = true;
+      scene.add(base);
+
+      const bordeMaqueta = new THREE.Mesh(
+        new THREE.BoxGeometry(127.4, 1.4, 127.4),
+        new THREE.MeshStandardMaterial({ color: 0x243322, roughness: 0.85 })
+      );
+      bordeMaqueta.position.y = -2.25;
+      scene.add(bordeMaqueta);
+
+      function crearPlano(w, d, x, z, y, mat, rotY = 0) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.08, d), mat);
+        m.position.set(x, y, z);
+        m.rotation.y = rotY;
+        m.receiveShadow = true;
+        scene.add(m);
+        return m;
+      }
+
+      // =========================================================================
+      // 3. GLORIETA NOROESTE, AVENIDAS Y SEÑALIZACIÓN VIAL
+      // =========================================================================
+      const gx = -38, gz = -44;
+
+      // Anillo exterior de banqueta + corona asfaltada + isla verde central
+      const glorietaBanqueta = new THREE.Mesh(new THREE.CylinderGeometry(16.2, 16.4, 0.14, 48), matConcreto);
+      glorietaBanqueta.position.set(gx, 0.07, gz);
+      glorietaBanqueta.receiveShadow = true;
+
+      const glorietaAsfalto = new THREE.Mesh(new THREE.CylinderGeometry(14.8, 14.8, 0.16, 48), matAsfalto);
+      glorietaAsfalto.position.set(gx, 0.08, gz);
+      glorietaAsfalto.receiveShadow = true;
+
+      // Línea discontinua circular de carriles en glorieta
+      const ringCarril = new THREE.Mesh(new THREE.RingGeometry(11.6, 11.82, 48), matBlanco);
+      ringCarril.rotation.x = -Math.PI / 2;
+      ringCarril.position.set(gx, 0.17, gz);
+
+      const glorietaIslaBorde = new THREE.Mesh(new THREE.CylinderGeometry(8.8, 8.9, 0.22, 44), matConcreto);
+      glorietaIslaBorde.position.set(gx, 0.11, gz);
+      glorietaIslaBorde.receiveShadow = true;
+
+      const glorietaIslaCesped = new THREE.Mesh(new THREE.CylinderGeometry(8.3, 8.3, 0.25, 44), matCesped);
+      glorietaIslaCesped.position.set(gx, 0.125, gz);
+      glorietaIslaCesped.receiveShadow = true;
+
+      scene.add(glorietaBanqueta, glorietaAsfalto, ringCarril, glorietaIslaBorde, glorietaIslaCesped);
+
+      // Triángulo vial interno y caseta/monumento de ladrillo terracota dentro de la glorieta
+      crearPlano(1.5, 11.5, gx - 2.3, gz + 0.6, 0.24, matAsfalto, 0.28);
+      crearPlano(1.5, 11.5, gx + 2.3, gz + 0.6, 0.24, matAsfalto, -0.28);
+      crearPlano(7.5, 1.4, gx, gz - 2.4, 0.24, matAsfalto, 0);
+
+      const casetaGlorieta = new THREE.Group();
+      const casetaCuerpo = new THREE.Mesh(
+        new THREE.BoxGeometry(2.3, 2.3, 2.3),
+        new THREE.MeshStandardMaterial({ color: 0x8d452b, roughness: 0.78 })
+      );
+      casetaCuerpo.position.y = 1.35;
+      casetaCuerpo.castShadow = true;
+      const casetaTecho = new THREE.Mesh(new THREE.ConeGeometry(1.95, 1.1, 4), matCumbrera);
+      casetaTecho.rotation.y = Math.PI / 4;
+      casetaTecho.position.y = 3.05;
+      casetaTecho.castShadow = true;
+      casetaGlorieta.add(casetaCuerpo, casetaTecho);
+      casetaGlorieta.position.set(gx, 0.1, gz + 0.3);
+      scene.add(casetaGlorieta);
+
+      // Avenida Oeste (horizontal hacia la glorieta)
+      crearPlano(28, 10.6, -50, gz, 0.06, matConcreto);
+      crearPlano(28, 8.8, -50, gz, 0.08, matAsfalto);
+      crearPlano(28, 0.22, -50, gz, 0.13, matAmarillo);
+      for (let x = -62; x <= -52; x += 2.8) {
+        crearPlano(1.4, 0.16, x, gz - 2.2, 0.13, matBlanco);
+        crearPlano(1.4, 0.16, x, gz + 2.2, 0.13, matBlanco);
+      }
+
+      // Avenida Norte (diagonal superior hacia la glorieta)
+      const avNorteBanq = crearPlano(10.4, 24, -30.2, -54.5, 0.06, matConcreto, -0.34);
+      const avNorteAsf = crearPlano(8.6, 24, -30.2, -54.5, 0.08, matAsfalto, -0.34);
+      crearPlano(0.22, 24, -30.2, -54.5, 0.13, matAmarillo, -0.34);
+
+      // Pasos peatonales (cebra) en accesos de la glorieta
+      for (let i = -3; i <= 3; i += 1.1) {
+        crearPlano(0.55, 2.4, -52.5, gz + i, 0.135, matBlanco);
+      }
+
+      // Plazoleta triangular de conexión al este de la glorieta
+      crearPlano(24, 6.2, -16, -37.5, 0.06, matConcreto);
+      crearPlano(24, 4.6, -16, -37.5, 0.08, matAsfalto);
+
+      // Avenida curva lateral izquierda (bordea Edificio Principal y Gastronomía)
+      crearPlano(6.2, 18, -28.0, -24.0, 0.06, matConcreto);
+      crearPlano(4.6, 18, -28.0, -24.0, 0.08, matAsfalto);
+      crearPlano(6.2, 12, -26.2, -11.5, 0.06, matConcreto, -0.26);
+      crearPlano(4.6, 12, -26.2, -11.5, 0.08, matAsfalto, -0.26);
+      crearPlano(6.2, 24, -28.5, 4.5, 0.06, matConcreto, 0.08);
+      crearPlano(4.6, 24, -28.5, 4.5, 0.08, matAsfalto, 0.08);
+
+      // Andadores peatonales interiores y plazas entre edificios
+      crearPlano(4.6, 46, 0.2, -13.5, 0.05, matConcreto);
+      crearPlano(34, 3.4, 13.5, -10.2, 0.05, matConcreto);
+      crearPlano(44, 3.4, 12.0, 12.2, 0.05, matConcreto);
+      crearPlano(3.2, 24, 23.8, 1.0, 0.05, matConcreto);
+      // Plazoleta frente a Biblioteca
+      crearPlano(12, 8, 11.0, -14.5, 0.05, matPatioClaro);
+
+      // =========================================================================
+      // 4. ESTACIONAMIENTOS, TOPES, EXPLANADA Y AUTOS 3D DETALLADOS
+      // =========================================================================
+      // Estacionamiento Superior (Norte del Edificio Principal)
+      crearPlano(24, 13.0, -13.5, -26.5, 0.06, matConcreto);
+      crearPlano(22.6, 11.6, -13.5, -26.5, 0.08, matAsfalto);
+      for (let x = -23.0; x <= -4.0; x += 2.5) {
+        crearPlano(0.18, 3.2, x, -30.2, 0.13, matBlanco);
+        crearPlano(0.18, 3.2, x, -22.8, 0.13, matBlanco);
+      }
+
+      // Estacionamiento Inferior Alargado (Sur de Gastronomía y Mecatrónica)
+      crearPlano(47, 12.4, -6.5, 19.8, 0.06, matConcreto);
+      crearPlano(45.6, 11.0, -6.5, 19.8, 0.08, matAsfalto);
+      for (let x = -26.5; x <= 13.5; x += 2.5) {
+        crearPlano(0.18, 3.3, x, 16.2, 0.13, matBlanco);
+        crearPlano(0.18, 3.3, x, 23.4, 0.13, matBlanco);
+      }
+      // Paso peatonal al este del estacionamiento inferior
+      for (let z = 15.5; z <= 24.0; z += 1.2) {
+        crearPlano(2.4, 0.55, 15.2, z, 0.135, matBlanco);
+      }
+
+      // Explanada gris Suroeste + Patio recreativo con Kiosco
+      crearPlano(15.5, 12.5, -20.5, 32.5, 0.06, matPatioClaro);
+      crearPlano(20.5, 12.5, -1.5, 32.5, 0.05, new THREE.MeshStandardMaterial({ color: 0xc8c5ba, roughness: 0.9 }));
+
+      // Kiosco / Caseta de vigilancia en el patio sur
+      const kioscoSur = new THREE.Group();
+      const kCuerpo = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.5, 2.8), matMuro);
+      kCuerpo.position.y = 1.25;
+      kCuerpo.castShadow = true;
+      const kTecho = new THREE.Mesh(new THREE.ConeGeometry(2.6, 1.3, 4), matTeja);
+      kTecho.rotation.y = Math.PI / 4;
+      kTecho.position.y = 3.1;
+      kTecho.castShadow = true;
+      kioscoSur.add(kCuerpo, kTecho);
+      kioscoSur.position.set(4.5, 0, 27.5);
+      scene.add(kioscoSur);
+
+      // Constructor de vehículos 3D detallados (carrocería metálica, cabina, faros y ruedas)
+      const matLlanta = new THREE.MeshStandardMaterial({ color: 0x1a1d20, roughness: 0.85 });
+      const matRin = new THREE.MeshStandardMaterial({ color: 0xd0d7de, metalness: 0.8, roughness: 0.25 });
+      const matFaroDel = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff3b0, emissiveIntensity: 0.4 });
+      const matFaroTras = new THREE.MeshStandardMaterial({ color: 0xd32f2f, emissive: 0xff1744, emissiveIntensity: 0.35 });
+
+      function crearAuto3D(colorHex) {
+        const car = new THREE.Group();
+        const matChasis = new THREE.MeshStandardMaterial({
+          color: colorHex,
+          roughness: 0.28,
+          metalness: 0.55
+        });
+
+        const chasis = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.58, 2.85), matChasis);
+        chasis.position.y = 0.46;
+        chasis.castShadow = true;
+        chasis.receiveShadow = true;
+
+        const cabina = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.48, 1.55), matVentana);
+        cabina.position.set(0, 0.94, -0.1);
+        cabina.castShadow = true;
+
+        const toldo = new THREE.Mesh(new THREE.BoxGeometry(1.24, 0.08, 1.45), matChasis);
+        toldo.position.set(0, 1.19, -0.1);
+
+        car.add(chasis, cabina, toldo);
+
+        // Faros delanteros y calaveras
+        [-0.5, 0.5].forEach(fx => {
+          const fDel = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 0.08), matFaroDel);
+          fDel.position.set(fx, 0.52, 1.43);
+          const fTras = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 0.08), matFaroTras);
+          fTras.position.set(fx, 0.52, -1.43);
+          car.add(fDel, fTras);
+        });
+
+        // 4 Ruedas con rines
+        [[-0.76, 0.88], [0.76, 0.88], [-0.76, -0.88], [0.76, -0.88]].forEach(([wx, wz]) => {
+          const llanta = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.18, 14), matLlanta);
+          llanta.rotation.z = Math.PI / 2;
+          llanta.position.set(wx, 0.28, wz);
+          const rin = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.19, 10), matRin);
+          rin.rotation.z = Math.PI / 2;
+          rin.position.set(wx, 0.28, wz);
+          car.add(llanta, rin);
+        });
+
+        return car;
+      }
+
+      // Autos estacionados en cajones superiores e inferiores
+      const coloresAutos = [0xf5f7fa, 0x37474f, 0x1c242b, 0xc62828, 0xcfd8dc, 0x1565c0, 0x607d8b, 0x2e7d32];
+      const coordsEstacionados = [
+        [-21.75, 16.2, 0], [-16.75, 16.2, 0], [-11.75, 16.2, 0], [-6.75, 16.2, 0],
+        [-1.75, 16.2, 0], [3.25, 16.2, 0], [8.25, 16.2, 0],
+        [-19.25, 23.4, Math.PI], [-14.25, 23.4, Math.PI], [-9.25, 23.4, Math.PI],
+        [0.75, 23.4, Math.PI], [5.75, 23.4, Math.PI],
+        [-21.75, -30.2, 0], [-16.75, -30.2, 0], [-9.25, -30.2, 0],
+        [-14.25, -22.8, Math.PI], [-6.75, -22.8, Math.PI]
+      ];
+      coordsEstacionados.forEach(([ax, az, rot], i) => {
+        const c = crearAuto3D(coloresAutos[i % coloresAutos.length]);
+        c.position.set(ax, 0.08, az);
+        c.rotation.y = rot;
+        scene.add(c);
+      });
+
+      // Autos animados circulando continuamente por la glorieta y avenidas
+      const autosEnMovimiento = [
+        { mesh: crearAuto3D(0xffffff), tipo: 'glorieta', angulo: 0.4, radio: 12.6, vel: 0.012 },
+        { mesh: crearAuto3D(0xc62828), tipo: 'glorieta', angulo: 3.5, radio: 10.4, vel: 0.015 },
+        { mesh: crearAuto3D(0x263238), tipo: 'avenidaOeste', t: 0.2, vel: 0.006 }
+      ];
+      autosEnMovimiento.forEach(a => scene.add(a.mesh));
+
+      // =========================================================================
+      // 5. CANCHA DE FÚTBOL REGLAMENTARIA CON PORTERÍAS Y TORRES DE LUZ
+      // =========================================================================
+      const cx = 34.5, cz = 35.0;
+      const canchaW = 31.5, canchaD = 45.0;
+
+      // Guarnición de concreto perimetral
+      crearPlano(canchaW + 1.6, canchaD + 1.6, cx, cz, 0.06, matConcreto);
+
+      // Césped con marcaciones FIFA en alta definición
+      const canchaMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(canchaW, 0.10, canchaD),
+        new THREE.MeshStandardMaterial({ map: mapCancha, roughness: 0.85 })
+      );
+      canchaMesh.position.set(cx, 0.09, cz);
+      canchaMesh.receiveShadow = true;
+      scene.add(canchaMesh);
+
+      // Porterías 3D con postes tubulares y red semitransparente
+      const matPosteGol = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.4 });
+      const matRedGol = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.36,
+        wireframe: true
+      });
+
+      [cz - 20.6, cz + 20.6].forEach((zGol, idx) => {
+        const dir = idx === 0 ? -1 : 1;
+        const golGrp = new THREE.Group();
+        golGrp.position.set(cx, 0.14, zGol);
+
+        const pIzq = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 2.1, 10), matPosteGol);
+        pIzq.position.set(-2.8, 1.05, 0);
+        const pDer = pIzq.clone();
+        pDer.position.x = 2.8;
+        const travesano = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 5.72, 10), matPosteGol);
+        travesano.rotation.z = Math.PI / 2;
+        travesano.position.set(0, 2.1, 0);
+
+        const red = new THREE.Mesh(new THREE.BoxGeometry(5.6, 2.05, 1.35), matRedGol);
+        red.position.set(0, 1.02, dir * 0.68);
+
+        golGrp.add(pIzq, pDer, travesano, red);
+        scene.add(golGrp);
+      });
+
+      // 4 Torres de iluminación deportiva en las esquinas de la cancha
+      const reflectoresCancha = [];
+      [
+        [cx - 17.2, cz - 21.5], [cx + 17.2, cz - 21.5],
+        [cx - 17.2, cz + 21.5], [cx + 17.2, cz + 21.5]
+      ].forEach(([tx, tz]) => {
+        const mastil = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.28, 11.5, 10), matMetalInox);
+        mastil.position.set(tx, 5.75, tz);
+        mastil.castShadow = true;
+
+        const cabezal = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.75, 0.45), matMarcoAluminio);
+        cabezal.position.set(tx, 11.6, tz);
+        cabezal.lookAt(cx, 0, cz);
+
+        const panelLed = new THREE.Mesh(
+          new THREE.PlaneGeometry(1.95, 0.55),
+          new THREE.MeshBasicMaterial({ color: 0xfffde7 })
+        );
+        panelLed.position.set(tx, 11.6, tz);
+        panelLed.lookAt(cx, 0, cz);
+        panelLed.translateZ(0.24);
+
+        reflectoresCancha.push(panelLed);
+        scene.add(mastil, cabezal, panelLed);
+      });
+
+      // =========================================================================
+      // 6. TECHOS POLIGONALES EXACTOS (HIP ROOF + L-ROOF) Y LOS 5 EDIFICIOS
+      // =========================================================================
+      const edificiosInteractivos = [];
+      const etiquetasDOM = [];
+      const gruposEdificios = {};
+      let edificioActivoId = null;
+      let edificioHoverId = null;
+      let camAnim = null;
+
+      function crearTechoCuatroAguas(w, d, hTecho, alero = 0.72) {
+        const hw = w / 2 + alero;
+        const hd = d / 2 + alero;
+        const r = Math.max(0, (w - d) / 2);
+
+        const p0 = [-hw, 0,  hd];
+        const p1 = [ hw, 0,  hd];
+        const p2 = [ hw, 0, -hd];
+        const p3 = [-hw, 0, -hd];
+        const c0 = [-r, hTecho, 0];
+        const c1 = [ r, hTecho, 0];
+
+        const tri = r > 0.05
+          ? [p0, p1, c1, p0, c1, c0, p1, p2, c1, p2, p3, c0, p2, c0, c1, p3, p0, c0]
+          : [p0, p1, c0, p1, p2, c0, p2, p3, c0, p3, p0, c0];
+
+        const pos = [];
+        const uvs = [];
+        const uvScale = 0.14;
+
+        for (let i = 0; i < tri.length; i += 3) {
+          const a = tri[i], b = tri[i + 1], c = tri[i + 2];
+          pos.push(...a, ...b, ...c);
+          const v1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+          const v2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+          const nx = v1[1] * v2[2] - v1[2] * v2[1];
+          const nz = v1[0] * v2[1] - v1[1] * v2[0];
+          if (Math.abs(nz) >= Math.abs(nx)) {
+            uvs.push(a[0] * uvScale, a[1] * uvScale * 1.9, b[0] * uvScale, b[1] * uvScale * 1.9, c[0] * uvScale, c[1] * uvScale * 1.9);
+          } else {
+            uvs.push(a[2] * uvScale, a[1] * uvScale * 1.9, b[2] * uvScale, b[1] * uvScale * 1.9, c[2] * uvScale, c[1] * uvScale * 1.9);
+          }
+        }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geo.computeVertexNormals();
+        return geo;
+      }
+
+      function crearEdificio3D({ id, etiqueta, x, z, w, h, d, pisos = 2, enL = false }) {
+        const grupo = new THREE.Group();
+        grupo.position.set(x, 0, z);
+
+        const matMuroEd = matMuro.clone();
+        const matTejaEd = matTeja.clone();
+        grupo.userData = { matMuroEd, matTejaEd, pos: new THREE.Vector3(x, 0, z) };
+
+        function agregarBloque(bx, bz, bw, bh, bd) {
+          const bGroup = new THREE.Group();
+          bGroup.position.set(bx, 0, bz);
+
+          const zoc = new THREE.Mesh(new THREE.BoxGeometry(bw + 0.34, 0.75, bd + 0.34), matZocalo);
+          zoc.position.y = 0.375;
+          zoc.castShadow = true;
+          zoc.receiveShadow = true;
+          bGroup.add(zoc);
+
+          const muro = new THREE.Mesh(new THREE.BoxGeometry(bw, bh - 0.75, bd), matMuroEd);
+          muro.position.y = 0.75 + (bh - 0.75) / 2;
+          muro.castShadow = true;
+          muro.receiveShadow = true;
+          muro.userData.edificioId = id;
+          edificiosInteractivos.push(muro);
+          bGroup.add(muro);
+
+          const cornisa = new THREE.Mesh(new THREE.BoxGeometry(bw + 0.45, 0.3, bd + 0.45), matPilastra);
+          cornisa.position.y = bh - 0.1;
+          bGroup.add(cornisa);
+
+          // Ventanas con marco de aluminio en cada nivel
+          const cols = Math.max(3, Math.floor(bw / 3.1));
+          for (let p = 0; p < pisos; p++) {
+            const wy = 1.65 + p * ((bh - 1.5) / pisos);
+            for (let i = 0; i < cols; i++) {
+              const wx = -bw / 2 + (bw / cols) * (i + 0.5);
+              const marcoF = new THREE.Mesh(new THREE.BoxGeometry(1.75, 1.35, 0.16), matMarcoAluminio);
+              marcoF.position.set(wx, wy, bd / 2 + 0.04);
+              const cristalF = new THREE.Mesh(new THREE.BoxGeometry(1.55, 1.15, 0.19), matVentana);
+              cristalF.position.set(wx, wy, bd / 2 + 0.05);
+
+              const marcoB = marcoF.clone();
+              marcoB.position.z = -bd / 2 - 0.04;
+              const cristalB = cristalF.clone();
+              cristalB.position.z = -bd / 2 - 0.05;
+              bGroup.add(marcoF, cristalF, marcoB, cristalB);
+            }
+          }
+
+          // Techo poligonal a 4 aguas con alero y caballete
+          const hTecho = 2.4;
+          const alero = 0.72;
+          const sofito = new THREE.Mesh(new THREE.BoxGeometry(bw + alero * 2, 0.14, bd + alero * 2), matSofito);
+          sofito.position.y = bh + 0.04;
+          sofito.castShadow = true;
+
+          const techo = new THREE.Mesh(crearTechoCuatroAguas(bw, bd, hTecho, alero), matTejaEd);
+          techo.position.y = bh + 0.1;
+          techo.castShadow = true;
+          techo.receiveShadow = true;
+          techo.userData.edificioId = id;
+          edificiosInteractivos.push(techo);
+
+          const largoCumb = Math.max(0.4, (bw - bd));
+          const cumbrera = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.22, 0.22, largoCumb + 0.3, 10),
+            matCumbrera
+          );
+          cumbrera.rotation.z = Math.PI / 2;
+          cumbrera.position.y = bh + hTecho + 0.08;
+
+          bGroup.add(sofito, techo, cumbrera);
+          grupo.add(bGroup);
+        }
+
+        if (enL) {
+          agregarBloque(0, -2.2, 18.6, h, 7.6);
+          agregarBloque(-4.8, 3.6, 8.6, h, 7.4);
+        } else {
+          agregarBloque(0, 0, w, h, d);
+        }
+
+        scene.add(grupo);
+        gruposEdificios[id] = grupo;
+
+        const div = document.createElement('div');
+        div.className = 'etiqueta-edificio';
+        div.dataset.id = id;
+        div.innerHTML = `<div class="pin-gota"></div><div class="etiqueta-texto">${etiqueta}</div>`;
+        div.addEventListener('click', (e) => {
+          e.stopPropagation();
+          seleccionarEdificio(id);
+        });
+        container.appendChild(div);
+
+        etiquetasDOM.push({
+          id,
+          elemento: div,
+          pos3D: new THREE.Vector3(x, h + 3.2, z)
+        });
+      }
+
+      crearEdificio3D({ id: 'principal', etiqueta: 'Edificio\nPrincipal', x: -14.5, z: -11.5, w: 18.6, h: 7.4, d: 11.0, pisos: 2, enL: true });
+      crearEdificio3D({ id: 'biblioteca', etiqueta: 'Biblioteca', x: 11.0, z: -24.5, w: 13.8, h: 7.6, d: 12.6, pisos: 2 });
+      crearEdificio3D({ id: 'gastronomia', etiqueta: 'Edificio\nGastronomía', x: -11.5, z: 6.5, w: 14.8, h: 5.8, d: 9.2, pisos: 1 });
+      crearEdificio3D({ id: 'mecatronica', etiqueta: 'Taller\nMecatrónica', x: 10.5, z: 4.5, w: 15.2, h: 6.2, d: 9.6, pisos: 1 });
+      crearEdificio3D({ id: 'comedor', etiqueta: 'Comedor', x: 31.0, z: 0.5, w: 10.8, h: 5.0, d: 8.6, pisos: 1 });
+
+      // =========================================================================
+      // 7. SIEMBRA DEL BOSQUE PERIMETRAL, FLAMBOYANES, PALMERAS Y AVES
+      // =========================================================================
+      let seed = 17;
+      function rand() {
+        const x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+      }
+
+      // Bosque perimetral denso rodeando el campus y la glorieta
+      let treeIdx = 0;
+      for (let x = -58; x <= 58; x += 5.1) {
+        for (let z = -58; z <= 58; z += 5.1) {
+          const distGlorieta = Math.hypot(x - gx, z - gz);
+          const enGlorieta = distGlorieta < 18.2;
+          const enAvOeste = (x < -34 && z > gz - 7.5 && z < gz + 7.5);
+          const enAvNorte = (x > -42 && x < -20 && z < -45);
+          const enCampusCentral = (x > -33 && x < 49 && z > -42 && z < 56);
+          if (enGlorieta || enAvOeste || enAvNorte || enCampusCentral) continue;
+
+          plantarArbol(
+            x + (rand() - 0.5) * 2.5,
+            z + (rand() - 0.5) * 2.5,
+            0.90 + rand() * 0.45,
+            treeIdx++,
+            false
+          );
+        }
+      }
+
+      // Árboles ornamentales y flamboyanes en plazas y jardines del campus
+      [
+        [-34.5, -43.5, 0.72, false], [-41.2, -43.5, 0.68, true], [-25.5, -31.5, 0.85, false],
+        [-3.0, -32.0, 0.82, false], [2.5, -24.0, 0.85, true], [21.5, -26.0, 0.92, false],
+        [22.5, -18.0, 0.88, false], [16.5, -10.5, 0.85, true], [22.0, -11.5, 0.82, false],
+        [22.8, 4.5, 0.85, false], [-2.0, 12.2, 0.76, true], [-24.0, 11.5, 0.8, false],
+        [-8.5, 31.5, 0.82, false], [9.5, 31.5, 0.88, true], [13.0, 38.0, 0.9, false]
+      ].forEach(([ax, az, sc, flor], i) => plantarArbol(ax, az, sc, i + 3, flor));
+
+      // Palmeras caribeñas alineadas en glorieta, explanada y andadores
+      [
+        [-38.0, -37.2, 5.2], [-31.8, -44.0, 5.6],
+        [-2.2, -22.0, 5.5], [-2.2, -6.0, 5.8], [-2.2, 8.0, 5.4],
+        [7.5, -13.2, 5.3], [14.5, -13.2, 5.6],
+        [-26.5, 29.0, 5.8], [-26.5, 36.0, 5.5]
+      ].forEach(([px, pz, alt], i) => plantarPalmera(px, pz, alt, i));
+
+      // Luminarias peatonales en andadores
+      const matFocoFarola = new THREE.MeshBasicMaterial({ color: 0xfff8e1 });
+      [
+        [-1.8, -28], [-1.8, -14], [-1.8, 0], [8.5, -10.2],
+        [18.5, -10.2], [6.5, 12.2], [18.5, 12.2], [-18.5, 12.2]
+      ].forEach(([lx, lz]) => {
+        const poste = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 3.6, 8), matMarcoAluminio);
+        poste.position.set(lx, 1.8, lz);
+        poste.castShadow = true;
+        const esfera = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 10), matFocoFarola);
+        esfera.position.set(lx, 3.7, lz);
+        scene.add(poste, esfera);
+      });
+
+      // Bandada de aves sobrevolando el campus
+      const aves = [];
+      const matAve = new THREE.MeshBasicMaterial({ color: 0xf5f7fa, side: THREE.DoubleSide });
+      for (let i = 0; i < 6; i++) {
+        const grp = new THREE.Group();
+        const alaIzq = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.24), matAve);
+        alaIzq.position.x = -0.36;
+        const alaDer = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.24), matAve);
+        alaDer.position.x = 0.36;
+        grp.add(alaIzq, alaDer);
+        scene.add(grp);
+        aves.push({ grp, alaIzq, alaDer, fase: i * 1.05 });
+      }
+
+      // =========================================================================
+      // 8. RAYCASTER, SELECCIÓN DE EDIFICIOS Y ENFOQUE DE CÁMARA
+      // =========================================================================
+      function enfocarCamaraEn(targetVec, offsetVec) {
+        camAnim = {
+          t: 0,
+          startCam: camera.position.clone(),
+          endCam: targetVec.clone().add(offsetVec),
+          startTarget: controls.target.clone(),
+          endTarget: targetVec.clone()
+        };
+      }
+
+      function seleccionarEdificio(id) {
+        const info = DATOS_EDIFICIOS[id];
+        const grp = gruposEdificios[id];
+        if (!info || !grp) return;
+
+        edificioActivoId = id;
+        controls.autoRotate = false;
+        btnPlay.textContent = '▶';
+
+        etiquetasDOM.forEach(item => {
+          item.elemento.classList.toggle('activo', item.id === id);
+        });
+
+        infoSubtitulo.textContent = info.subtitulo;
+        infoTitulo.textContent = info.nombre;
+        infoDesc.textContent = info.desc;
+        infoTags.innerHTML = info.carreras
+          .map(c => `<span class="tag-carrera">${c}</span>`)
+          .join('');
+        panelInfo.classList.add('visible');
+
+        enfocarCamaraEn(grp.userData.pos, new THREE.Vector3(-12, 34, 34));
+
+        if (window.FlutterMapChannel && typeof window.FlutterMapChannel.postMessage === 'function') {
+          window.FlutterMapChannel.postMessage(id);
+        } else if (window.parent) {
+          window.parent.postMessage({ type: 'edificioSeleccionado', id }, '*');
+        }
+      }
+      document.getElementById('btn-cerrar-panel').addEventListener('click', (e) => {
+        e.stopPropagation();
+        resetView();
+      });
+
+      const raycaster = new THREE.Raycaster();
+      const pointer = new THREE.Vector2();
+      let downPos = { x: 0, y: 0 };
+
+      renderer.domElement.addEventListener('pointermove', (e) => {
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(edificiosInteractivos, false);
+        edificioHoverId = hits.length > 0 ? hits[0].object.userData.edificioId : null;
+        container.style.cursor = edificioHoverId ? 'pointer' : 'grab';
+      });
+
+      renderer.domElement.addEventListener('pointerdown', (e) => {
+        downPos = { x: e.clientX, y: e.clientY };
+      });
+
+      renderer.domElement.addEventListener('pointerup', (e) => {
+        if (Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 6) return;
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(edificiosInteractivos, false);
+        if (hits.length > 0 && hits[0].object.userData.edificioId) {
+          seleccionarEdificio(hits[0].object.userData.edificioId);
+        } else if (edificioActivoId !== null) {
+          resetView();
+        }
+      });
+
+      // =========================================================================
+      // 9. CONTROLES DE CÁMARA E ILUMINACIÓN (DÍA / ATARDECER / NOCHE)
+      // =========================================================================
+      const btnPlay = document.getElementById('btn-play');
+      btnPlay.addEventListener('click', () => {
+        controls.autoRotate = !controls.autoRotate;
+        btnPlay.textContent = controls.autoRotate ? '❚❚' : '▶';
+      });
+
+      let modoLuz = 0; // 0: Día Soleado, 1: Hora Dorada, 2: Noche Iluminada
+      const btnLuz = document.getElementById('btn-luz');
+      btnLuz.addEventListener('click', () => {
+        modoLuz = (modoLuz + 1) % 3;
+        document.body.classList.remove('atardecer', 'noche');
+
+        if (modoLuz === 0) {
+          btnLuz.textContent = '☀️';
+          dirLight.color.setHex(0xfff9ed);
+          dirLight.intensity = 1.05;
+          dirLight.position.set(-48, 86, 38);
+          hemiLight.color.setHex(0xf6fbff);
+          hemiLight.groundColor.setHex(0x3b592c);
+          hemiLight.intensity = 0.72;
+          matVentana.emissive.setHex(0x000000);
+          matVentana.emissiveIntensity = 0.0;
+        } else if (modoLuz === 1) {
+          document.body.classList.add('atardecer');
+          btnLuz.textContent = '🌅';
+          dirLight.color.setHex(0xffb26b);
+          dirLight.intensity = 1.24;
+          dirLight.position.set(-68, 42, 36);
+          hemiLight.color.setHex(0xffd4a8);
+          hemiLight.groundColor.setHex(0x2a3648);
+          hemiLight.intensity = 0.62;
+          matVentana.emissive.setHex(0xffb74d);
+          matVentana.emissiveIntensity = 0.35;
+        } else {
+          document.body.classList.add('noche');
+          btnLuz.textContent = '🌙';
+          dirLight.color.setHex(0x6b93d6);
+          dirLight.intensity = 0.42;
+          dirLight.position.set(42, 68, -32);
+          hemiLight.color.setHex(0x395886);
+          hemiLight.groundColor.setHex(0x132018);
+          hemiLight.intensity = 0.48;
+          matVentana.emissive.setHex(0xffd166);
+          matVentana.emissiveIntensity = 0.85;
+        }
+      });
+
+      document.getElementById('btn-zoom-in').addEventListener('click', () => {
+        camera.position.lerp(controls.target, 0.2);
+      });
+
+      document.getElementById('btn-zoom-out').addEventListener('click', () => {
+        const dir = camera.position.clone().sub(controls.target).multiplyScalar(1.24);
+        camera.position.copy(controls.target).add(dir);
+      });
+
+      function resetView() {
+        enfocarCamaraEn(defaultTarget, defaultCamPos.clone().sub(defaultTarget));
+        controls.autoRotate = true;
+        btnPlay.textContent = '❚❚';
+        panelInfo.classList.remove('visible');
+        edificioActivoId = null;
+        etiquetasDOM.forEach(item => item.elemento.classList.remove('activo'));
+      }
+      document.getElementById('btn-reset').addEventListener('click', resetView);
+      window.resetView = resetView;
+
+      window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+      });
+
+      // =========================================================================
+      // 11. BUCLE DE ANIMACIÓN 60 FPS
+      // =========================================================================
+      const clock = new THREE.Clock();
+
+      function animate() {
+        requestAnimationFrame(animate);
+        const t = clock.getElapsedTime();
+
+        // 1. Tráfico animado en glorieta y avenida oeste
+        autosEnMovimiento.forEach(a => {
+          if (a.tipo === 'glorieta') {
+            a.angulo += a.vel;
+            const nx = gx + Math.cos(a.angulo) * a.radio;
+            const nz = gz + Math.sin(a.angulo) * a.radio;
+            a.mesh.position.set(nx, 0.14, nz);
+            a.mesh.rotation.y = -a.angulo;
+          } else if (a.tipo === 'avenidaOeste') {
+            a.t = (a.t + a.vel) % 1;
+            const nx = -62 + a.t * 14;
+            a.mesh.position.set(nx, 0.14, gz + 2.1);
+            a.mesh.rotation.y = Math.PI / 2;
+          }
+        });
+
+        // 2. Balanceo suave de brisa en copas de árboles y palmeras
+        for (let i = 0; i < arbolesAnimados.length; i += 2) {
+          const arb = arbolesAnimados[i];
+          if (arb.userData.copa) {
+            arb.userData.copa.rotation.z = Math.sin(t * 1.5 + arb.userData.fase) * 0.028;
+            arb.userData.copa.rotation.x = Math.cos(t * 1.2 + arb.userData.fase) * 0.018;
+          }
+        }
+
+        // 3. Vuelo circular de aves sobre el campus
+        aves.forEach((ave, idx) => {
+          const ang = t * 0.35 + ave.fase;
+          const rad = 26 + idx * 2.5;
+          const x = Math.cos(ang) * rad;
+          const z = Math.sin(ang) * rad;
+          ave.grp.position.set(x, 23 + Math.sin(t * 2 + idx) * 1.2, z);
+          ave.grp.rotation.y = -ang;
+          const aleteo = Math.sin(t * 9 + idx * 1.4) * 0.45;
+          ave.alaIzq.rotation.z = aleteo;
+          ave.alaDer.rotation.z = -aleteo;
+        });
+
+        // Interpolación suave de cámara al enfocar un edificio
+        if (camAnim) {
+          camAnim.t = Math.min(1, camAnim.t + 0.045);
+          const ease = 1 - Math.pow(1 - camAnim.t, 3);
+          camera.position.lerpVectors(camAnim.startCam, camAnim.endCam, ease);
+          controls.target.lerpVectors(camAnim.startTarget, camAnim.endTarget, ease);
+          if (camAnim.t >= 1) camAnim = null;
+        }
+
+        // Resaltado sutil al pasar cursor o seleccionar un edificio
+        Object.keys(gruposEdificios).forEach(id => {
+          const { matMuroEd, matTejaEd } = gruposEdificios[id].userData;
+          const destacado = (id === edificioActivoId || id === edificioHoverId);
+          matMuroEd.emissive.setHex(destacado ? 0x1b3a1d : 0x000000);
+          matTejaEd.emissive.setHex(destacado ? 0x2b1208 : 0x000000);
+        });
+
+        controls.update();
+
+        // Actualizar posición de pines flotantes
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        etiquetasDOM.forEach(item => {
+          const proj = item.pos3D.clone().project(camera);
+          if (proj.z < 1) {
+            item.elemento.style.display = 'flex';
+            item.elemento.style.left = `${(proj.x * 0.5 + 0.5) * w}px`;
+            item.elemento.style.top = `${(-proj.y * 0.5 + 0.5) * h}px`;
+          } else {
+            item.elemento.style.display = 'none';
+          }
+        });
+
+        renderer.render(scene, camera);
+      }
+      animate();
+    };
+</script>
+</body>
+</html>

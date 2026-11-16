@@ -1,0 +1,61 @@
+name: nexxus
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.12.1 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_svg: ^2.3.0
+  url_launcher: ^6.3.2
+  dio: ^5.9.2
+  google_fonts: ^8.1.0
+  sqflite: ^2.4.3
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  share_plus: ^12.0.2
+  csv: ^6.0.0
+  excel: ^4.0.6
+  file_selector: ^1.1.0
+  sqflite_common_ffi: ^2.4.4
+  sqflite_common_ffi_web: ^1.2.0
+  sqflite_common: ^2.5.14
+  # Soporte HTML5 multiplataforma (Android, iOS y Web)
+  webview_flutter: ^4.10.0
+  webview_flutter_web: ^0.2.3+4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - Assets/Generales/logonexxusverde.svg
+    - Assets/Carreras/
+    - Assets/Images/G/
+    - Assets/Images/DIA/
+    - Assets/Images/IM/
+    - Assets/Images/IF/
+    - Assets/Images/TIID/
+    - Assets/Images/NM/
+    - Assets/mapa_3d/
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: Assets/Generales/logonexxusverde.svg
+  android: true
+  ios: true
+  web: false
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  remove_alpha_ios: true
+  image_path: "Assets/Generales/icononexxus.png"
+  adaptive_icon_background: "#FFFFFF"
