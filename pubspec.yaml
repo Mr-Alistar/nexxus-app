@@ -29,6 +29,9 @@ dependencies:
   sqflite_common_ffi_web: ^1.2.0
   sqflite_common: ^2.5.14
   shared_preferences: ^2.5.6
+  # Soporte HTML5 multiplataforma para el mapa 3D del campus (Android, iOS y Web)
+  webview_flutter: ^4.10.0
+  webview_flutter_web: ^0.2.3+4
 
 dev_dependencies:
   flutter_test:
@@ -47,6 +50,7 @@ flutter:
     -  Assets/Images/IF/
     -  Assets/Images/TIID/
     -  Assets/Images/NM/
+    -  Assets/mapa_3d/
 
 flutter_native_splash:
   color: "#FFFFFF"
